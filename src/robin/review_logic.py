@@ -42,9 +42,19 @@ def pick_best_candidate(index: dict, entries: list[Entry], config: dict) -> tupl
     if not candidates:
         return None
 
-    candidates.sort(key=lambda item: item[0])
-    _, item, entry = candidates[0]
+    _, item, entry = min(candidates, key=lambda candidate: candidate[0])
     return item, entry
+
+
+def mark_surfaced(index: dict, entry_id: str) -> dict:
+    if entry_id not in index.get("items", {}):
+        raise KeyError(entry_id)
+
+    item = index["items"][entry_id]
+    item["last_surfaced"] = now_iso()
+    item["times_surfaced"] = item.get("times_surfaced", 0) + 1
+    item["_awaiting_rating"] = True
+    return item
 
 
 def rate_item(index: dict, entry_id: str, rating: int) -> dict:
@@ -55,7 +65,8 @@ def rate_item(index: dict, entry_id: str, rating: int) -> dict:
 
     item = index["items"][entry_id]
     item["rating"] = rating
-    item["last_surfaced"] = now_iso()
-    item["times_surfaced"] = item.get("times_surfaced", 0) + 1
+    if not item.get("_awaiting_rating"):
+        item["last_surfaced"] = now_iso()
+        item["times_surfaced"] = item.get("times_surfaced", 0) + 1
+    item["_awaiting_rating"] = False
     return item
-

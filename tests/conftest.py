@@ -20,13 +20,8 @@ def robin_env(tmp_path, monkeypatch):
     state_dir.mkdir(parents=True)
 
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.delenv("HERMES_HOME", raising=False)
-    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    monkeypatch.delenv("ROBIN_HOME", raising=False)
-    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
-    monkeypatch.setenv("ROBIN_WORKSPACE", str(workspace))
+    monkeypatch.delenv("ROBIN_STATE_DIR", raising=False)
+    monkeypatch.setenv("ROBIN_STATE_DIR", str(state_dir))
     monkeypatch.chdir(workspace)
 
     config = {

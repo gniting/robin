@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from robin.parser import parse_entry, topic_to_filename
-from robin.serializer import build_media_entry, build_text_entry, serialize_entry
+import pytest
+
+from robin.parser import RobinEntryParseError, load_topic_entries, parse_entry, topic_to_filename
+from robin.serializer import build_media_entry, build_text_entry, generate_entry_id, serialize_entry
 
 
 def test_serialize_and_parse_round_trip():
@@ -13,16 +15,17 @@ def test_serialize_and_parse_round_trip():
         note="Keep this near writing advice.",
         tags=["writing", "clarity"],
         date_added="2026-04-08",
-        entry_id="20260408-a1f3",
+        entry_id="20260408-a1f3c9",
     )
 
     parsed = parse_entry(serialize_entry(entry), "ai-reasoning")
 
-    assert parsed.entry_id == "20260408-a1f3"
+    assert parsed.entry_id == "20260408-a1f3c9"
     assert parsed.topic == "ai-reasoning"
     assert parsed.source == "https://example.com"
     assert parsed.description.startswith("A short reminder")
     assert parsed.tags == ["writing", "clarity"]
+    assert "**Source:**" not in parsed.body
     assert "Robin note" in parsed.body
 
 
@@ -30,7 +33,7 @@ def test_parse_media_entry_round_trip():
     entry = build_media_entry(
         topic="Poetry",
         media_kind="image",
-        media_source="media/poetry/20260408-a1f3.png",
+        media_source="media/poetry/20260408-a1f3c9.png",
         description="A photographed poem excerpt worth revisiting for tone and imagery.",
         creator="Mary Oliver",
         published_at="1986",
@@ -40,13 +43,13 @@ def test_parse_media_entry_round_trip():
         note="Useful for later reflection.",
         tags=["poetry"],
         date_added="2026-04-08",
-        entry_id="20260408-a1f3",
+        entry_id="20260408-a1f3c9",
     )
 
     parsed = parse_entry(serialize_entry(entry), "poetry")
 
     assert parsed.entry_type == "image"
-    assert parsed.media_source == "media/poetry/20260408-a1f3.png"
+    assert parsed.media_source == "media/poetry/20260408-a1f3c9.png"
     assert parsed.creator == "Mary Oliver"
     assert parsed.summary.startswith("An excerpt")
 
@@ -66,6 +69,13 @@ def test_topic_to_filename_sanitizes_special_characters():
     assert topic_to_filename("  :::  ") == "untitled.md"
 
 
+def test_generate_entry_id_uses_six_hex_suffix():
+    entry_id = generate_entry_id("2026-04-08")
+
+    assert entry_id.startswith("20260408-")
+    assert len(entry_id.split("-", 1)[1]) == 6
+
+
 def test_serialize_entry_skips_empty_optional_fields():
     entry = build_text_entry(
         topic="Notes",
@@ -75,7 +85,7 @@ def test_serialize_entry_skips_empty_optional_fields():
         note="",
         tags=[],
         date_added="2026-04-08",
-        entry_id="20260408-a1f3",
+        entry_id="20260408-a1f3c9",
     )
 
     serialized = serialize_entry(entry)
@@ -85,3 +95,11 @@ def test_serialize_entry_skips_empty_optional_fields():
     assert "media_source:" not in serialized
     assert "source:" not in serialized
     assert "tags:" not in serialized
+
+
+def test_load_topic_entries_reports_malformed_entry_with_file_context(tmp_path):
+    topic_file = tmp_path / "bad-topic.md"
+    topic_file.write_text("date_added 2026-04-08\n\nBroken entry", encoding="utf-8")
+
+    with pytest.raises(RobinEntryParseError, match="bad-topic.md"):
+        load_topic_entries(topic_file)

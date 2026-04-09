@@ -1,3 +1,12 @@
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&height=250&color=gradient&text=Robin&section=header&desc=agent%20assisted%20digital%20commonplace%20book&descAlign=64&descAlignY=60&fontAlign=39&fontAlignY=41&reversal=false" width="100%"/>
+</p>
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/gniting/robin" alt="License"/></a>
+  <a href="https://agentskills.io/"><img src="https://img.shields.io/badge/Skill-Green?style=flat&label=AI" alt="ai skill" /></a>
+</p>
+---
+
 # Robin
 
 Robin is a skill for your AI agent to help you keep a digital commonplace book. When you share something worth remembering, your agent can use Robin to save it in a well-organized vault and bring it back later when it is useful.
@@ -13,7 +22,7 @@ Over time, a commonplace book becomes more than a record of reading. It turns in
 ## Features
 
 - Filing — Send Robin any content and it determines the right topic, files it away, and confirms
-- Media-aware filing — Local images are copied into the vault, video URLs are stored by reference, and uploaded/local video files are rejected
+- Media-aware filing — Local images are copied into the vault, video URLs are stored but uploaded/local video files are rejected
 - Topic management — Creates new topics on demand, suggests topic names, resolves conflicts
 - Spaced repetition review — Surfaces items on a configurable schedule so you reinforce learning
 - Rating — Rate surfaced items 1–5; Robin tracks what you care about most over time
@@ -30,36 +39,29 @@ You need:
 
 ## Install Robin With Your Agent
 
-The easiest path is to ask your agent to install Robin for you.
+The easiest path is to ask your agent to install Robin for you and choose a Robin state directory for this skill.
 
-Example prompts:
+Example prompt:
 
-- `Install the Robin skill from GitHub and make it available in this workspace.`
-- `Install the Robin skill from this local folder and set it up for me.`
+- `Install the Robin skill from https://github.com/gniting/robin`
 
-If your agent needs a repository reference, point it at the Robin repo or local skill directory and ask it to load the skill using its normal local-skill workflow.
+Your agent should handle Robin's setup and configuration automatically. As part of setup, your agent should create:
 
-## Set Up Robin
+- `<your vault>/topics/` for topic files
+- `<your vault>/media/` for copied images
+- `<agent workspace>/data/robin/robin-config.json` for Robin settings
+- optionally `<agent workspace>/data/robin/robin-review-index.json` for review state
 
-Robin is meant to be set up by your agent for you.
+Your agent should pass Robin one of these every time it runs a Robin command:
 
-Good setup prompts:
+- `--state-dir <agent-workspace>/data/robin`
+- `ROBIN_STATE_DIR=<agent-workspace>/data/robin`
 
-- `Set up Robin for my vault at /path/to/my/vault.`
-- `Use Robin and create any folders or config files it needs inside my vault.`
+By default, an agent can run Robin immediately through the repo-local Python scripts in `scripts/`. Installing the package to get the `robin-add`, `robin-review`, and related entry points is optional.
 
-During setup, Robin should create:
-
-- `topics/` for topic files
-- `media/` for copied images
-- `data/robin/robin-config.json` for Robin settings
-- `data/robin/robin-review-index.json` for review state
-
-The content lives in your vault. Robin's own state lives in your agent workspace under `data/robin/`.
+If your agent supports file indexing, it should index Robin's topic files like any other Markdown content. Use your agent's normal search for broad recall across your whole workspace.
 
 ## Use Robin Through Your Agent
-
-You do not need to talk to Robin through the command line. Just ask your agent to use the skill.
 
 Example prompts:
 
@@ -67,33 +69,20 @@ Example prompts:
 - `Use Robin to store this article under a good topic.`
 - `Use Robin to save this image and include the author and context.`
 - `Review my Robin items.`
-- `What has Robin saved about clear thinking?`
+- `Search what Robin has saved about clear thinking.`
 
-For media items, your agent should provide:
+Robin's own search is useful when your agent needs Robin-specific structure such as topic filters, tags, stable ids, ratings, and structured JSON output.
 
-- `description` for every entry
-- `creator`, `published_at`, and `summary` for image and video entries
+## Resurfacing items from your vault for reinforcement learning
 
-## What Robin Stores
-
-Inside your vault, Robin stores:
-
-- topic files under `topics/`
-- copied images under `media/<topic>/`
-
-Inside the agent workspace, Robin stores:
-
-- `data/robin/robin-config.json`
-- `data/robin/robin-review-index.json`
-
-Robin stores content and review state. Your agent is still responsible for choosing the topic, adding useful context, and deciding when to save or resurface something.
-
-If your agent supports file indexing, it should include Robin's topic files in its searchable corpus. Use your agent's normal search for broad recall, and use `robin-search` when Robin-specific structured lookup is needed.
+Ask your agent to schedule Robin review at your preferred cadence. Robin does not run a scheduler itself; your agent or host environment should trigger review and present the surfaced item back to you.
 
 ## Need More Detail?
 
 See [docs/guide.md](docs/guide.md) for the advanced guide, including:
 
+- manual setup with `--state-dir` or `ROBIN_STATE_DIR`
+- the difference between repo-local scripts and optional installed entry points
 - file format and media rules
 - vault layout and runtime behavior
 - CLI usage and manual workflows

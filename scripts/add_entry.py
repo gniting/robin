@@ -3,7 +3,10 @@
 add_entry.py — Robin add entry script
 
 Usage:
-  python3 add_entry.py --topic "AI Reasoning" --content "..." --description "..." [--source URL] [--note "..."] [--tags tag1,tag2]
+  python3 add_entry.py --state-dir /path/to/data/robin --topic "AI Reasoning" --content "..." --description "..." [--source URL] [--note "..."] [--tags tag1,tag2]
+
+Or set:
+  ROBIN_STATE_DIR=/path/to/data/robin
 """
 
 from __future__ import annotations

@@ -9,7 +9,7 @@ from robin.parser import topic_slug
 
 def generate_entry_id(date_added: str | None = None) -> str:
     stamp = (date_added or str(date.today())).replace("-", "")
-    return f"{stamp}-{uuid4().hex[:4]}"
+    return f"{stamp}-{uuid4().hex[:6]}"
 
 
 def build_text_entry(
@@ -23,9 +23,6 @@ def build_text_entry(
     entry_id: str | None = None,
 ) -> Entry:
     body_parts: list[str] = []
-    if source:
-        body_parts.append(f"**Source:** {source}")
-        body_parts.append("")
     body_parts.append(content.strip())
     if note:
         body_parts.append("")

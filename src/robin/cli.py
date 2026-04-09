@@ -2,24 +2,28 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from datetime import date
+from typing import NoReturn
 
 from robin.config import load_config, load_index, save_index
 from robin.index import ensure_entry_in_index, rebuild_index
 from robin.media import copy_image_to_vault, is_video_url
-from robin.parser import SEPARATOR, load_all_entries, topic_slug, topic_to_filename, topics_dir
-from robin.review_logic import pick_best_candidate, rate_item
-from robin.search_logic import filter_by_tags, filter_by_topic, search_entries
+from robin.parser import RobinEntryParseError, SEPARATOR, load_all_entries, load_topic_entries, topic_slug, topic_to_filename, topics_dir
+from robin.review_logic import mark_surfaced, pick_best_candidate, rate_item
+from robin.search_logic import filter_by_tags, search_entries
 from robin.serializer import build_media_entry, build_text_entry, generate_entry_id, serialize_entry
 
 
-def _error(message: str, *, as_json: bool) -> None:
+def _error(message: str, *, as_json: bool) -> NoReturn:
     if as_json:
         print(json.dumps({"error": message}, indent=2))
     else:
         print(f"ERROR: {message}")
     raise SystemExit(1)
+
+
+def _emit_json(payload: dict) -> None:
+    print(json.dumps(payload, indent=2))
 
 
 def _add_to_topic(config: dict, topic: str, entry_text: str) -> str:
@@ -37,8 +41,27 @@ def _add_to_topic(config: dict, topic: str, entry_text: str) -> str:
     return filepath.name
 
 
+def _validate_serialized_entry(entry_text: str, *, as_json: bool) -> None:
+    # The topic file writer appends a trailing newline after serialization, so
+    # validate against entry_text + "\n" to catch a body that ends with a
+    # standalone "***" line as well as separator occurrences in the middle.
+    if SEPARATOR in entry_text + "\n":
+        _error(
+            "Entry content cannot contain a standalone '***' line because Robin uses it as an internal separator.",
+            as_json=as_json,
+        )
+
+
+def _add_state_dir_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--state-dir",
+        help="Directory containing robin-config.json and robin-review-index.json",
+    )
+
+
 def add_main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Add an entry to Robin's commonplace book")
+    _add_state_dir_arg(parser)
     parser.add_argument("--topic", required=True, help="Topic name")
     parser.add_argument("--entry-type", choices=["text", "image", "video"], default="text", help="Entry type")
     parser.add_argument("--content", default="", help="Content to file")
@@ -54,8 +77,8 @@ def add_main(argv: list[str] | None = None) -> None:
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args(argv)
 
-    config = load_config()
-    index = load_index()
+    config = load_config(args.state_dir)
+    index = load_index(args.state_dir)
 
     topic = args.topic.strip()
     date_added = str(date.today())
@@ -124,9 +147,17 @@ def add_main(argv: list[str] | None = None) -> None:
             entry_id=entry_id,
         )
 
-    filename = _add_to_topic(config, topic, serialize_entry(entry))
+    serialized_entry = serialize_entry(entry)
+    _validate_serialized_entry(serialized_entry, as_json=args.json)
+    try:
+        filename = _add_to_topic(config, topic, serialized_entry)
+    except OSError as exc:
+        _error(f"Failed to write topic file: {exc}", as_json=args.json)
     ensure_entry_in_index(entry, index)
-    save_index(index)
+    try:
+        save_index(index, args.state_dir)
+    except OSError as exc:
+        _error(f"Failed to write review index: {exc}", as_json=args.json)
 
     if args.json:
         print(
@@ -149,71 +180,102 @@ def add_main(argv: list[str] | None = None) -> None:
 
 def review_main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Robin review system")
+    _add_state_dir_arg(parser)
     parser.add_argument("--status", action="store_true", help="Show review status")
     parser.add_argument("--rate", nargs=2, metavar=("ID", "RATING"), help="Rate an item by stable entry id")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args(argv)
 
-    config = load_config()
-    index = load_index()
+    config = load_config(args.state_dir)
+    index = load_index(args.state_dir)
 
     if args.rate:
         entry_id, rating = args.rate
         try:
             rating_value = int(rating)
         except ValueError:
-            print("ERROR: Rating must be a number between 1 and 5.")
-            sys.exit(1)
+            _error("Rating must be a number between 1 and 5.", as_json=args.json)
         try:
             item = rate_item(index, entry_id, rating_value)
         except KeyError:
-            print(f"ERROR: Item '{entry_id}' not found in index")
-            sys.exit(1)
+            _error(f"Item '{entry_id}' not found in index", as_json=args.json)
         except ValueError as exc:
-            print(f"ERROR: {exc}")
-            sys.exit(1)
-        save_index(index)
+            _error(str(exc), as_json=args.json)
+        try:
+            save_index(index, args.state_dir)
+        except OSError as exc:
+            _error(f"Failed to write review index: {exc}", as_json=args.json)
         if args.json:
-            print(json.dumps(item, indent=2))
+            _emit_json(item)
             return
         print(f"✓ Rated {entry_id}: {item['rating']}/5")
         return
 
     if args.status:
-        total = len(index.get("items", {}))
-        rated = sum(1 for item in index.get("items", {}).values() if item.get("rating") is not None)
+        index_items = index.get("items", {})
+        total = len(index_items)
+        min_items = config.get("min_items_before_review", 30)
+        rated = sum(1 for item in index_items.values() if item.get("rating") is not None)
         if args.json:
             print(json.dumps({
                 "total_items": total,
                 "rated": rated,
                 "unrated": total - rated,
-                "min_items_before_review": config.get("min_items_before_review", 30),
-                "ready": total >= config.get("min_items_before_review", 30),
+                "min_items_before_review": min_items,
+                "ready": total >= min_items,
             }, indent=2))
             return
         print("Review status:")
         print(f"  Total items:   {total}")
         print(f"  Rated:         {rated}")
         print(f"  Unrated:       {total - rated}")
-        print(f"  Min to review: {config.get('min_items_before_review', 30)}")
-        print(f"  Ready:         {'YES' if total >= config.get('min_items_before_review', 30) else 'NO'}")
+        print(f"  Min to review: {min_items}")
+        print(f"  Ready:         {'YES' if total >= min_items else 'NO'}")
         return
 
     total = len(index.get("items", {}))
     min_items = config.get("min_items_before_review", 30)
     if total < min_items:
+        if args.json:
+            _emit_json(
+                {
+                    "status": "skip",
+                    "reason": "not_enough_items",
+                    "total_items": total,
+                    "min_items_before_review": min_items,
+                }
+            )
+            return
         print(f"SKIP: {total} items (need {min_items})")
         return
 
-    entries = load_all_entries(config)
-    candidate = pick_best_candidate(index, entries, config)
+    try:
+        entries = load_all_entries(config)
+    except RobinEntryParseError as exc:
+        _error(str(exc), as_json=args.json)
+    try:
+        candidate = pick_best_candidate(index, entries, config)
+    except ValueError as exc:
+        _error(f"Review index contains an invalid timestamp: {exc}", as_json=args.json)
     if candidate is None:
+        if args.json:
+            _emit_json({"status": "skip", "reason": "no_eligible_items"})
+            return
         print("SKIP: No eligible items (all recently surfaced or not indexed)")
         return
 
     item, entry = candidate
+    try:
+        item = mark_surfaced(index, entry.entry_id)
+    except KeyError:
+        _error(f"Item '{entry.entry_id}' not found in index", as_json=args.json)
+    try:
+        save_index(index, args.state_dir)
+    except OSError as exc:
+        _error(f"Failed to write review index: {exc}", as_json=args.json)
     if args.json:
-        print(json.dumps({
+        _emit_json({
+            "status": "ok",
             "id": entry.entry_id,
             "topic": entry.topic,
             "date_added": entry.date_added,
@@ -229,7 +291,7 @@ def review_main(argv: list[str] | None = None) -> None:
             "body": entry.body,
             "rating": item.get("rating"),
             "times_surfaced": item.get("times_surfaced", 0),
-        }, indent=2))
+        })
         return
 
     print(f"[{entry.topic}.md] {entry.entry_id}")
@@ -238,6 +300,8 @@ def review_main(argv: list[str] | None = None) -> None:
         print(f"Type: {entry.entry_type}")
     if entry.media_source:
         print(f"Media: {entry.media_source}")
+    if entry.source:
+        print(f"Source: {entry.source}")
     if entry.creator:
         print(f"Creator: {entry.creator}")
     if entry.published_at:
@@ -251,29 +315,41 @@ def review_main(argv: list[str] | None = None) -> None:
     print()
     print(entry.body)
     print()
-    print(f"→ To rate: python3 review.py --rate \"{entry.entry_id}\" <1-5>")
+    print(f"→ To rate: rerun robin-review --rate \"{entry.entry_id}\" <1-5> with the same state-dir")
 
 
 def search_main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Search Robin's commonplace book")
+    _add_state_dir_arg(parser)
     parser.add_argument("query", nargs="?", help="Search query")
     parser.add_argument("--topic", help="Filter by topic name")
     parser.add_argument("--tags", help="Comma-separated tag filter")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args(argv)
 
-    config = load_config()
-    index = load_index()
-    entries = load_all_entries(config)
+    config = load_config(args.state_dir)
+    index = load_index(args.state_dir)
 
     if args.topic:
-        entries = filter_by_topic(entries, topic_slug(args.topic))
+        topic_path = topics_dir(config) / topic_to_filename(args.topic)
+        if topic_path.exists():
+            try:
+                entries = load_topic_entries(topic_path)
+            except RobinEntryParseError as exc:
+                _error(str(exc), as_json=args.json)
+        else:
+            entries = []
         heading = f"Topic '{args.topic}': {len(entries)} entries"
-    elif args.tags:
+    else:
+        try:
+            entries = load_all_entries(config)
+        except RobinEntryParseError as exc:
+            _error(str(exc), as_json=args.json)
+
+    if args.tags:
         tags = [tag.strip() for tag in args.tags.split(",") if tag.strip()]
         if not tags:
-            print("ERROR: Provide at least one non-empty tag.")
-            sys.exit(1)
+            _error("Provide at least one non-empty tag.", as_json=args.json)
         entries = filter_by_tags(entries, tags)
         heading = f"Tags [{', '.join(tags)}]: {len(entries)} results"
     elif args.query:
@@ -282,6 +358,7 @@ def search_main(argv: list[str] | None = None) -> None:
     else:
         heading = f"Total: {len(entries)} entries"
 
+    index_items = index.get("items", {})
     if args.json:
         print(json.dumps({
             "count": len(entries),
@@ -299,7 +376,7 @@ def search_main(argv: list[str] | None = None) -> None:
                     "published_at": entry.published_at,
                     "summary": entry.summary,
                     "tags": entry.tags,
-                    "rating": index.get("items", {}).get(entry.entry_id, {}).get("rating"),
+                    "rating": index_items.get(entry.entry_id, {}).get("rating"),
                     "body": entry.body,
                 }
                 for entry in entries
@@ -310,7 +387,7 @@ def search_main(argv: list[str] | None = None) -> None:
     print(heading)
     print()
     for entry in entries:
-        rating = index.get("items", {}).get(entry.entry_id, {}).get("rating")
+        rating = index_items.get(entry.entry_id, {}).get("rating")
         print(f"[{entry.topic}.md] {entry.entry_id} / {entry.date_added}  ★{rating or '—'}")
         if entry.entry_type != "text":
             print(f"  Type: {entry.entry_type}")
@@ -335,21 +412,26 @@ def search_main(argv: list[str] | None = None) -> None:
 
 def topics_main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="List all Robin topics")
+    _add_state_dir_arg(parser)
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args(argv)
 
-    config = load_config()
-    index = load_index()
-    entries = load_all_entries(config)
+    config = load_config(args.state_dir)
+    index = load_index(args.state_dir)
+    try:
+        entries = load_all_entries(config)
+    except RobinEntryParseError as exc:
+        _error(str(exc), as_json=args.json)
 
     topics: dict[str, dict] = {}
+    index_items = index.get("items", {})
     for entry in entries:
         topic_stats = topics.setdefault(
             entry.topic,
             {"topic": entry.topic, "filename": f"{entry.topic}.md", "entries": 0, "rated": 0, "unrated": 0},
         )
         topic_stats["entries"] += 1
-        if index.get("items", {}).get(entry.entry_id, {}).get("rating") is None:
+        if index_items.get(entry.entry_id, {}).get("rating") is None:
             topic_stats["unrated"] += 1
         else:
             topic_stats["rated"] += 1
@@ -376,14 +458,21 @@ def topics_main(argv: list[str] | None = None) -> None:
 
 def reindex_main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Rebuild Robin's review index")
+    _add_state_dir_arg(parser)
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args(argv)
 
-    config = load_config()
-    old_index = load_index()
-    entries = load_all_entries(config)
+    config = load_config(args.state_dir)
+    old_index = load_index(args.state_dir)
+    try:
+        entries = load_all_entries(config)
+    except RobinEntryParseError as exc:
+        _error(str(exc), as_json=args.json)
     new_index = rebuild_index(entries, old_index)
-    save_index(new_index)
+    try:
+        save_index(new_index, args.state_dir)
+    except OSError as exc:
+        _error(f"Failed to write review index: {exc}", as_json=args.json)
 
     rated = sum(1 for item in new_index["items"].values() if item.get("rating") is not None)
     if args.json:

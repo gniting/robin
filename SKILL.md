@@ -9,53 +9,114 @@ metadata:
 
 # Robin — Personal Knowledge Curation Skill
 
-A digital commonplace book inspired by the 17th–19th century tradition of collecting quotes, ideas, and observations. You feed Robin things you want to remember — quotes, articles, links, thoughts, images, and video links — and it files them into topic-organized markdown files. Robin also runs a spaced-repetition review engine that surfaces items on a schedule so you reinforce learning over time.
+Robin is a digital commonplace book. The user gives content to the AI agent, and the agent uses Robin to store it in topic-organized Markdown files and resurface it later for review.
 
-Named for Robin Williams' portrayal of Sean Maguire in Good Will Hunting — a reminder that the tools we build to sharpen our words are worth building well.
+## Storage Model
 
-## Core Concepts
+- `vault_path` is the user content vault
+- `vault_path/topics/` stores topic-organized Markdown files
+- `vault_path/media/` stores copied image assets
+- the Robin state directory stores:
+  - `robin-config.json`
+  - optionally `robin-review-index.json`
 
-- **Vault path**: where your Obsidian vault lives (local on the skill host)
-- **Topic files**: one markdown file per topic, entries appended chronologically, separated by `***`, each with a compact stable `id`
-- **Media directory**: copied image assets live under `vault_path/media/` by default
-- **Review index**: stored under `data/robin/robin-review-index.json` in the agent workspace by default
-- **Config**: stored under `data/robin/robin-config.json` in the agent workspace by default
-- **Config example**: shipped in `references/robin-config.json.example` for first-run setup
+Recommended default state directory:
 
-## Host Compatibility
+- `<agent-workspace>/data/robin/`
 
-Robin is host-neutral.
+Robin does not guess host layout. The caller must provide the Robin state directory explicitly.
 
-- Preferred runtime root: the agent workspace under `data/robin/`
-- Advanced overrides: `ROBIN_WORKSPACE`, `ROBIN_CONFIG_FILE`, `ROBIN_INDEX_FILE`, `ROBIN_HOME`
-- Compatibility fallback: XDG or `HERMES_HOME/data` if no workspace-local state is discoverable
-- Required host capabilities:
-  - local filesystem access
-  - ability to run bundled Python scripts
-  - Python 3.11+
-  - ability to invoke Robin on a schedule if periodic review is desired
+## Host Requirements
 
-## Safety Boundary
+The host agent must be able to:
 
-Robin is a storage and retrieval skill, not a code-editing skill.
+- read and write local files
+- run bundled Python scripts
+- pass CLI arguments or environment variables to Robin
+- schedule periodic review if review automation is desired
 
-During normal Robin use, I may:
+## Setup Contract
 
-- write entries into the user's vault
-- copy accepted image assets into the user's vault media directory
-- update the review index
+The host agent is responsible for first-run setup.
 
-During normal Robin use, I must not:
+On setup, the agent should:
 
-- edit Robin's source code, tests, docs, packaging, or install scripts
-- change files inside the installed Robin skill directory
-- modify `README.md`, `SKILL.md`, `install.sh`, `pyproject.toml`, or Python modules
+1. choose a state directory, usually `<agent-workspace>/data/robin/`
+2. create the state directory if it does not exist
+3. create `robin-config.json` in that directory if it does not exist
+4. ensure the configured vault contains `topics/` and `media/`
+5. optionally create `robin-review-index.json`; Robin will create an empty in-memory index if it is missing
+6. verify setup by running `python3 scripts/topics.py --state-dir <state-dir>`
 
-If I notice a bug or packaging problem in Robin while using the skill, I should report it to the user instead of patching it, unless the user explicitly asks me to modify Robin itself.
+Example `robin-config.json`:
+
+```json
+{
+  "vault_path": "/path/to/your/vault",
+  "topics_dir": "topics",
+  "media_dir": "media",
+  "min_items_before_review": 30,
+  "review_cooldown_days": 60
+}
+```
+
+`vault_path` is the only required config field. If omitted, Robin cannot run. All other config fields have defaults:
+
+- `topics_dir`: `topics`
+- `media_dir`: `media`
+- `min_items_before_review`: `30`
+- `review_cooldown_days`: `60`
+
+Optional example `robin-review-index.json`:
+
+```json
+{
+  "items": {}
+}
+```
+
+## Runtime Contract
+
+Robin accepts both:
+
+- `--state-dir /path/to/data/robin`
+- `ROBIN_STATE_DIR=/path/to/data/robin`
+
+Precedence:
+
+1. `--state-dir`
+2. `ROBIN_STATE_DIR`
+3. otherwise fail
+
+If neither is provided, Robin exits with:
+
+```text
+Robin state directory is not configured. Pass --state-dir or set ROBIN_STATE_DIR.
+```
+
+Default runnable path:
+
+- agents can run the repo-local scripts directly without installing the package:
+  - `python3 scripts/add_entry.py`
+  - `python3 scripts/review.py`
+  - `python3 scripts/reindex.py`
+  - `python3 scripts/search.py`
+  - `python3 scripts/topics.py`
+
+Optional installed path:
+
+- if the agent runs `pip install -e .`, Robin also exposes:
+  - `robin-add`
+  - `robin-review`
+  - `robin-reindex`
+  - `robin-search`
+  - `robin-topics`
+
+For advanced manual setup details and shell examples, see [docs/guide.md](docs/guide.md).
 
 ## Agent Responsibilities
 
-When using Robin, I am responsible for:
+When using Robin, the agent is responsible for:
 
 - choosing the topic
 - deciding whether the entry is `text`, `image`, or `video`
@@ -65,7 +126,8 @@ When using Robin, I am responsible for:
 - passing only supported media forms to Robin:
   - local image file paths for images
   - `http(s)` URLs for videos
-  - never uploaded/local video files
+  - never uploaded or local video files
+- passing `--state-dir` or `ROBIN_STATE_DIR` on every Robin invocation
 
 Robin is responsible for:
 
@@ -75,16 +137,33 @@ Robin is responsible for:
 - maintaining review state
 - returning a clear error instead of storing incomplete or unsupported media entries
 
-## Interaction Patterns
+## Safety Boundary
 
-### Filing (default mode)
+Robin is a storage and retrieval skill, not a code-editing skill.
 
-1. You send content (text, link, quote, note, article, image, or video link)
-2. I scan existing topic files, pick the best match
-3. If confident — file it and confirm
-4. If unsure between two topics — ask you to choose
-5. If no match exists — suggest a new topic name, file it, flag for review
-6. For media items, I must also supply `creator`, `published_at`, and `summary`; if any are missing, Robin rejects the entry
+Normal Robin use may:
+
+- write to the configured vault
+- update the review index
+- copy accepted image assets into the vault media directory
+
+Normal Robin use must not:
+
+- modify Robin's source code
+- modify Robin's docs
+- change packaging or tests
+- change the skill implementation unless the user explicitly asks to edit Robin itself
+
+If the agent notices a Robin bug while using the skill, it should report the issue to the user instead of patching Robin unless the user explicitly asks for a fix.
+
+## Filing
+
+1. The user sends content to the AI agent.
+2. The agent scans existing topic files and picks the best match.
+3. If confident, the agent files the item and confirms.
+4. If unsure between topics, the agent asks the user to choose.
+5. If no match exists, the agent suggests a new topic, files the item, and flags it for review.
+6. For media items, the agent must also supply `creator`, `published_at`, and `summary`. If any are missing, Robin rejects the entry.
 
 ### Entry-Type Rules
 
@@ -103,7 +182,7 @@ Robin is responsible for:
 
 ### Failure Rules
 
-Robin must reject the add operation if:
+Robin rejects the add operation if:
 
 - a text entry is missing `content`
 - a media entry is missing `description`, `creator`, `published_at`, or `summary`
@@ -111,30 +190,29 @@ Robin must reject the add operation if:
 - an image path does not exist or is not a supported image type
 - a video entry is missing a valid `http(s)` URL
 - a local or uploaded video file is supplied
+- the serialized entry would contain a standalone `***` line, which Robin reserves as its internal entry separator
 
-When the add operation fails, I should pass the returned error back to the user instead of pretending the item was stored.
+When the add operation fails, the agent should pass the returned error back to the user instead of pretending the item was stored.
 
-### Review mode
+## Review Mode
 
-Triggered by the review cron. Only runs when `items.count >= min_items_before_review`:
+Review is host-triggered. Robin itself does not run a scheduler.
 
-1. Pick the best candidate: unrated items first, then lowest rating, then least recently surfaced
-2. Skip any item surfaced within `review_cooldown_days`
-3. Surface the item to you with context, including media reference and metadata for media entries
-4. You rate it 1–5
-5. I update the review index — rating is always overwritten with the new one
-6. Increment `times_surfaced`, set `last_surfaced`
+Review behavior:
 
-### Commands
+1. Wait until `len(items) >= min_items_before_review`
+2. Prefer unrated items first
+3. Then lower-rated items
+4. Then least frequently surfaced items
+5. Skip items surfaced within `review_cooldown_days`
+6. Surface the chosen entry, including media metadata when present
+7. When an item is surfaced, Robin immediately increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`
+8. Accept a rating from 1 to 5
+9. If `_awaiting_rating` is `true`, rating only overwrites the rating and clears `_awaiting_rating` back to `false`
 
-- `robin review` — manually trigger a review cycle
-- `robin reindex` — rebuild review index from topic files (use after manual edits)
-- `robin search <query>` — query Robin entries with topic/tag filters and structured Robin-aware results
-- `robin topics` — list all existing topics
-- `robin add` — file something new (can also just send content directly)
-- `robin setup` — first-run config wizard
+If the agent calls `--rate` directly on an item that was not surfaced first, Robin still sets `last_surfaced`, increments `times_surfaced`, and leaves `_awaiting_rating` as `false`.
 
-### Search Guidance
+## Search Guidance
 
 When the host supports file indexing, Robin topic files should be part of the host agent's searchable corpus.
 
@@ -151,15 +229,9 @@ Use `robin-search` for:
 - deterministic JSON output for Robin entries
 - fallback when host indexing is unavailable or stale
 
-### CLI Contract
+`robin-search` can combine filters. If both `--topic` and `--tags` are provided, Robin first narrows to the topic and then applies the tag filter within that topic.
 
-Repo-local scripts:
-
-- `python3 scripts/add_entry.py`
-- `python3 scripts/review.py`
-- `python3 scripts/reindex.py`
-- `python3 scripts/search.py`
-- `python3 scripts/topics.py`
+## Commands
 
 Installed entry points:
 
@@ -169,77 +241,98 @@ Installed entry points:
 - `robin-search`
 - `robin-topics`
 
-Add-entry flags:
+Repo-local equivalents:
 
-- common: `--topic`, `--entry-type`, `--description`, `--source`, `--note`, `--tags`, `--json`
-- text: `--content`
-- image: `--media-path`, `--creator`, `--published-at`, `--summary`
-- video: `--media-url`, `--creator`, `--published-at`, `--summary`
+- `python3 scripts/add_entry.py`
+- `python3 scripts/review.py`
+- `python3 scripts/reindex.py`
+- `python3 scripts/search.py`
+- `python3 scripts/topics.py`
 
-JSON add success shape includes:
+All Robin commands accept:
+
+- `--state-dir`
+
+Examples:
+
+The examples below use the repo-local `python3 scripts/*.py` path. The installed `robin-*` commands are equivalent aliases if the package has been installed.
+
+- `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "reasoning" --content "..." --description "..."`
+- `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "writing" --content "..." --description "..." --note "Useful for later review."`
+- `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "writing" --content "Write as if speaking to a smart friend." --description "A reminder to keep prose conversational and clear." --source "https://example.com/article" --json`
+- `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "reasoning" --content "The map is not the territory." --description "A reminder that abstractions are not reality itself." --tags "thinking,quotes"`
+- `python3 scripts/review.py --state-dir /path/to/data/robin`
+- `python3 scripts/review.py --state-dir /path/to/data/robin --json`
+- `python3 scripts/review.py --state-dir /path/to/data/robin --status --json`
+- `python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5`
+- `python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5 --json`
+- `python3 scripts/search.py --state-dir /path/to/data/robin "clear thinking" --json`
+- `python3 scripts/search.py --state-dir /path/to/data/robin --topic "AI Reasoning" --json`
+- `python3 scripts/search.py --state-dir /path/to/data/robin --tags "writing,clarity" --json`
+- `python3 scripts/search.py --state-dir /path/to/data/robin --topic "AI Reasoning" --tags "clarity" --json`
+- `python3 scripts/topics.py --state-dir /path/to/data/robin --json`
+- `python3 scripts/reindex.py --state-dir /path/to/data/robin`
+
+Use `python3 scripts/reindex.py --state-dir <state-dir>` after manual edits to topic files, when rebuilding review state from existing markdown, or when importing legacy entries and wanting the review index rebuilt from disk.
+
+## JSON Contract
+
+Add success shape includes:
 
 - `id`
 - `topic`
-- `filename`
+- `filename` (topic file basename only, for example `ai-reasoning.md`)
 - `entry_type`
 - `media_source`
 - `description`
 
-Review/search JSON payloads include media-aware fields when present:
+Review success payload:
 
-- `entry_type`
-- `media_kind`
-- `media_source`
-- `creator`
-- `published_at`
-- `summary`
+- `{"status": "ok", "id": "...", "topic": "...", "date_added": "YYYY-MM-DD", "entry_type": "text|image|video", "media_kind": "image|video|\"\"", "media_source": "...|\"\"", "source": "...|\"\"", "description": "...", "creator": "...|\"\"", "published_at": "...|\"\"", "summary": "...|\"\"", "tags": [...], "body": "...", "rating": 1|2|3|4|5|null, "times_surfaced": N}`
 
-JSON add failure shape:
+Review rate success payload:
 
-- `{"error": "..."}` with exit status `1`
+- `{"id": "...", "topic": "...", "date": "YYYY-MM-DD", "rating": 1|2|3|4|5, "last_surfaced": "ISO-8601 timestamp", "times_surfaced": N, "_awaiting_rating": false}`
 
-## Storage Layout
+Search success payload:
 
-```
-vault_path/                       (e.g. /path/to/your/vault)
-  media/
-    poetry/
-      20260409-a1f3.png
-  topics/
-    ai-reasoning.md
-    investing.md
-    books-to-read.md
-    ...
+- `{"count": N, "entries": [{"id": "...", "topic": "...", "date_added": "YYYY-MM-DD", "entry_type": "text|image|video", "media_kind": "image|video|\"\"", "media_source": "...|\"\"", "source": "...|\"\"", "description": "...", "creator": "...|\"\"", "published_at": "...|\"\"", "summary": "...|\"\"", "tags": [...], "body": "...", "rating": 1|2|3|4|5|null}]}`
 
-agent-workspace/
-  data/
-    robin/
-      robin-config.json
-      robin-review-index.json
+Topics success payload:
 
-$ROBIN_HOME/                      advanced override if ROBIN_HOME is set
-  config/ or data/
-    robin-*.json
+- `[{"topic": "...", "filename": "...", "entries": N, "rated": N, "unrated": N}]`
 
-skill directory/
-  SKILL.md
-  README.md
-  install.sh
-  scripts/
-  src/robin/
-  references/robin-config.json.example
-```
+Reindex success payload:
+
+- `{"entries_found": N, "items_indexed": N, "rated": N, "unrated": N}`
+
+Review skip payloads:
+
+- `{"status": "skip", "reason": "not_enough_items", "total_items": N, "min_items_before_review": N}`
+- `{"status": "skip", "reason": "no_eligible_items"}`
+
+Review status payload:
+
+- `{"total_items": N, "rated": N, "unrated": N, "min_items_before_review": N, "ready": true|false}`
+
+Failure shape:
+
+- `{"error": "..."}`
+
+Exit status on failure:
+
+- `1`
 
 ## Topic File Format
 
 Entries are separated by `***`. Each entry is a frontmatter block followed by a blank line and then the body text.
 
-```
-id: 20260408-a1f3
+```text
+id: 20260408-a1f3c9
 date_added: 2026-04-08
 entry_type: image
 media_kind: image
-media_source: media/poetry/20260408-a1f3.png
+media_source: media/poetry/20260408-a1f3c9.png
 description: A photographed poem excerpt worth revisiting.
 creator: Mary Oliver
 published_at: 1986
@@ -247,94 +340,41 @@ summary: An excerpt about attention and observation.
 tags: [poetry]
 
 Opening lines from the photographed page.
-***
-id: 20260408-b7k2
-date_added: 2026-04-08
-entry_type: video
-media_kind: video
-media_source: https://www.youtube.com/watch?v=abc123
-description: A talk to revisit later for its framing and examples.
-creator: Speaker Name
-published_at: 2025-01-01
-summary: A concise summary of the talk.
-tags: [talks]
-
-
 ```
 
 Topic filename: lowercase topic slug with non-alphanumeric characters normalized to dashes.
-Example: "AI/ML Reasoning" -> `ai-ml-reasoning.md`
 
-Frontmatter parsing: keys are matched case-insensitively (`.lower()`). A blank line must separate frontmatter from body. Body starts at the first blank line.
+Frontmatter parsing rules:
 
-Field expectations:
-
-- `description` is required for every entry
-- `creator`, `published_at`, and `summary` are required for media entries
-- `media_source` is a copied vault-relative path for images and the original URL for videos
+- keys are matched case-insensitively
+- a blank line must separate frontmatter from body
+- body starts at the first blank line
 
 ## Review Index Schema
 
 ```json
 {
   "items": {
-    "20260408-a1f3": {
-      "id": "20260408-a1f3",
+    "20260408-a1f3c9": {
+      "id": "20260408-a1f3c9",
       "topic": "ai-reasoning",
       "date": "2026-04-08",
       "rating": null,
       "last_surfaced": "2026-04-08T10:00:00+00:00",
-      "times_surfaced": 0
+      "times_surfaced": 0,
+      "_awaiting_rating": false
     }
   }
 }
 ```
 
-Item identity lives in markdown frontmatter via `id`. The review index is derived state keyed by that `id`. Review settings such as `min_items_before_review` and `review_cooldown_days` live only in `robin-config.json`, which is stored under `data/robin/` in the agent workspace by default.
+Review settings such as `min_items_before_review` and `review_cooldown_days` live only in `robin-config.json`.
 
-## Review Cron
-
-Create review scheduling using your host's scheduler. Robin itself only needs the host to invoke the review command periodically.
-
-Hermes example for daily review at noon on weekdays:
-
-```
-hermes cron create \
-  --name "robin:review" \
-  --prompt "Run Robin review mode. Load robin-review-index.json. If items.count >= min_items_before_review, pick the best candidate (unrated first, then lowest rating, then least recently surfaced, skip if surfaced within cooldown days). Surface the item and wait for a rating (1–5). Update the index with the new rating, last_surfaced, and incremented times_surfaced." \
-  --schedule "0 12 * * 1-5" \
-  --skills robin \
-  --deliver origin
-```
-
-## Configuration (robin-config.json)
-
-```json
-{
-  "vault_path": "/path/to/your/vault",
-  "topics_dir": "topics",
-  "media_dir": "media",
-  "min_items_before_review": 30,
-  "review_cooldown_days": 60,
-  "preferred_rating_scale": "1-5",
-  "file_naming": "kebab"
-}
-```
-
-## Design Decisions
-
-- Config lives outside skill folder — updates to the skill do not overwrite user preferences
-- Review index is separate from topic files — keeps topic files clean and human-editable
-- Images are copied into the vault, but videos are only stored by URL reference
-- Rating always overwrites — newer rating wins, tracked in index only
-- Items identified by a stable frontmatter `id` — survives reindexing and same-day duplicates
-- Index can be rebuilt — `reindex.py` scans topic files and reconstructs the index from scratch
-- Agent-agnostic — works with any agent that implements a skills interface
+`_awaiting_rating` is an internal review-state flag. It is `true` after Robin surfaces an item and becomes `false` again after that surface is rated.
 
 ## Pitfalls
 
-- Don't use `---` as entry separator — it's already used to close frontmatter. Use `***`.
-- Uploaded or local video files are rejected — only video URLs are allowed.
-- Case-insensitive frontmatter — parse with `.lower()` on keys to handle any case variation.
-- Blank line required after frontmatter — the parser stops at the first blank line. Don't put body content on the same line as the last frontmatter field.
-- Keep `id` stable when manually editing entries — changing it creates a new review item.
+- Do not use `---` as an entry separator. Use `***`.
+- Uploaded or local video files are rejected.
+- A blank line is required after frontmatter.
+- Keep `id` stable when manually editing entries.

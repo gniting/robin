@@ -3,8 +3,11 @@
 topics.py — List all Robin topics
 
 Usage:
-  python3 topics.py         # List all topics with stats
-  python3 topics.py --json  # Output as JSON
+  python3 topics.py --state-dir /path/to/data/robin         # List all topics with stats
+  python3 topics.py --state-dir /path/to/data/robin --json  # Output as JSON
+
+Or set:
+  ROBIN_STATE_DIR=/path/to/data/robin
 """
 
 from __future__ import annotations

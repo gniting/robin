@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
+import pytest
+
 from robin.config import load_index, save_index
 from robin.parser import SEPARATOR, load_all_entries
 from robin.review_logic import parse_timestamp, pick_best_candidate, rate_item
@@ -24,7 +26,7 @@ def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
                         note="",
                         tags=["writing"],
                         date_added="2026-04-08",
-                        entry_id="20260408-a1f3",
+                        entry_id="20260408-a1f3c9",
                     )
                 ),
                 serialize_entry(
@@ -36,7 +38,7 @@ def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
                         note="",
                         tags=["writing"],
                         date_added="2026-04-08",
-                        entry_id="20260408-b7k2",
+                        entry_id="20260408-b7k2d1",
                     )
                 ),
             ]
@@ -48,16 +50,16 @@ def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
     now = datetime.now(timezone.utc).isoformat()
     index = {
         "items": {
-            "20260408-a1f3": {
-                "id": "20260408-a1f3",
+            "20260408-a1f3c9": {
+                "id": "20260408-a1f3c9",
                 "topic": "ai-reasoning",
                 "date": "2026-04-08",
                 "rating": None,
                 "last_surfaced": now,
                 "times_surfaced": 1,
             },
-            "20260408-b7k2": {
-                "id": "20260408-b7k2",
+            "20260408-b7k2d1": {
+                "id": "20260408-b7k2d1",
                 "topic": "ai-reasoning",
                 "date": "2026-04-08",
                 "rating": None,
@@ -75,7 +77,7 @@ def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
     )
     assert candidate is not None
     _, entry = candidate
-    assert entry.entry_id == "20260408-b7k2"
+    assert entry.entry_id == "20260408-b7k2d1"
     assert entry.description == "Second description."
     assert entry.body == "Second entry."
 
@@ -87,7 +89,7 @@ def test_review_surfaces_media_metadata(robin_env):
             build_media_entry(
                 topic="Poetry",
                 media_kind="image",
-                media_source="media/poetry/20260408-a1f3.png",
+                media_source="media/poetry/20260408-a1f3c9.png",
                 description="A photographed excerpt to revisit.",
                 creator="Mary Oliver",
                 published_at="1986",
@@ -97,7 +99,7 @@ def test_review_surfaces_media_metadata(robin_env):
                 note="",
                 tags=["poetry"],
                 date_added="2026-04-08",
-                entry_id="20260408-a1f3",
+                entry_id="20260408-a1f3c9",
             )
         )
         + "\n",
@@ -105,8 +107,8 @@ def test_review_surfaces_media_metadata(robin_env):
     )
     index = {
         "items": {
-            "20260408-a1f3": {
-                "id": "20260408-a1f3",
+            "20260408-a1f3c9": {
+                "id": "20260408-a1f3c9",
                 "topic": "poetry",
                 "date": "2026-04-08",
                 "rating": None,
@@ -125,15 +127,55 @@ def test_review_surfaces_media_metadata(robin_env):
     assert candidate is not None
     _, entry = candidate
     assert entry.entry_type == "image"
-    assert entry.media_source == "media/poetry/20260408-a1f3.png"
+    assert entry.media_source == "media/poetry/20260408-a1f3c9.png"
     assert entry.creator == "Mary Oliver"
     assert entry.summary.startswith("An excerpt")
 
 
+def test_review_text_output_includes_source(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["vault_path"] / "topics" / "writing.md"
+    topic_file.write_text(
+        serialize_entry(
+            build_text_entry(
+                topic="Writing",
+                content="Write as if speaking to a smart friend.",
+                description="Writing advice.",
+                source="https://example.com/article",
+                note="",
+                tags=["writing"],
+                date_added="2026-04-08",
+                entry_id="20260408-a1f3c9",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    save_index(
+        {
+            "items": {
+                "20260408-a1f3c9": {
+                    "id": "20260408-a1f3c9",
+                    "topic": "writing",
+                    "date": "2026-04-08",
+                    "rating": None,
+                    "last_surfaced": None,
+                    "times_surfaced": 0,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py"])
+    review.main()
+    output = capsys.readouterr().out
+
+    assert "Source: https://example.com/article" in output
+
+
 def test_rate_item_writes_parseable_timestamp(robin_env):
     index = load_index()
-    index["items"]["20260408-a1f3"] = {
-        "id": "20260408-a1f3",
+    index["items"]["20260408-a1f3c9"] = {
+        "id": "20260408-a1f3c9",
         "topic": "ai-reasoning",
         "date": "2026-04-08",
         "rating": None,
@@ -141,7 +183,7 @@ def test_rate_item_writes_parseable_timestamp(robin_env):
         "times_surfaced": 0,
     }
 
-    item = rate_item(index, "20260408-a1f3", 5)
+    item = rate_item(index, "20260408-a1f3c9", 5)
     parsed = parse_timestamp(item["last_surfaced"])
 
     assert parsed.tzinfo is not None
@@ -149,10 +191,99 @@ def test_rate_item_writes_parseable_timestamp(robin_env):
     assert item["rating"] == 5
 
 
+def test_review_marks_item_surfaced_before_rating(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file.write_text(
+        serialize_entry(
+            build_text_entry(
+                topic="AI Reasoning",
+                content="Only entry.",
+                description="Only description.",
+                source="",
+                note="",
+                tags=["writing"],
+                date_added="2026-04-08",
+                entry_id="20260408-a1f3c9",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    save_index(
+        {
+            "items": {
+                "20260408-a1f3c9": {
+                    "id": "20260408-a1f3c9",
+                    "topic": "ai-reasoning",
+                    "date": "2026-04-08",
+                    "rating": None,
+                    "last_surfaced": None,
+                    "times_surfaced": 0,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py"])
+    review.main()
+    capsys.readouterr()
+
+    item = load_index()["items"]["20260408-a1f3c9"]
+    assert item["last_surfaced"] is not None
+    assert item["times_surfaced"] == 1
+
+
+def test_rate_after_surface_does_not_increment_times_surfaced_twice(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file.write_text(
+        serialize_entry(
+            build_text_entry(
+                topic="AI Reasoning",
+                content="Only entry.",
+                description="Only description.",
+                source="",
+                note="",
+                tags=["writing"],
+                date_added="2026-04-08",
+                entry_id="20260408-a1f3c9",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    save_index(
+        {
+            "items": {
+                "20260408-a1f3c9": {
+                    "id": "20260408-a1f3c9",
+                    "topic": "ai-reasoning",
+                    "date": "2026-04-08",
+                    "rating": None,
+                    "last_surfaced": None,
+                    "times_surfaced": 0,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py"])
+    review.main()
+    capsys.readouterr()
+
+    monkeypatch.setattr("sys.argv", ["review.py", "--rate", "20260408-a1f3c9", "5"])
+    review.main()
+    capsys.readouterr()
+
+    item = load_index()["items"]["20260408-a1f3c9"]
+    assert item["rating"] == 5
+    assert item["times_surfaced"] == 1
+    assert item["_awaiting_rating"] is False
+
+
 def test_review_rejects_non_numeric_rating(robin_env, monkeypatch, capsys):
     index = load_index()
-    index["items"]["20260408-a1f3"] = {
-        "id": "20260408-a1f3",
+    index["items"]["20260408-a1f3c9"] = {
+        "id": "20260408-a1f3c9",
         "topic": "ai-reasoning",
         "date": "2026-04-08",
         "rating": None,
@@ -161,7 +292,7 @@ def test_review_rejects_non_numeric_rating(robin_env, monkeypatch, capsys):
     }
     save_index(index)
 
-    monkeypatch.setattr("sys.argv", ["review.py", "--rate", "20260408-a1f3", "abc"])
+    monkeypatch.setattr("sys.argv", ["review.py", "--rate", "20260408-a1f3c9", "abc"])
 
     try:
         review.main()
@@ -171,3 +302,120 @@ def test_review_rejects_non_numeric_rating(robin_env, monkeypatch, capsys):
         raise AssertionError("Expected SystemExit for invalid rating")
 
     assert "Rating must be a number between 1 and 5." in capsys.readouterr().out
+
+
+def test_review_json_rejects_non_numeric_rating(robin_env, monkeypatch, capsys):
+    index = load_index()
+    index["items"]["20260408-a1f3c9"] = {
+        "id": "20260408-a1f3c9",
+        "topic": "ai-reasoning",
+        "date": "2026-04-08",
+        "rating": None,
+        "last_surfaced": None,
+        "times_surfaced": 0,
+    }
+    save_index(index)
+
+    monkeypatch.setattr("sys.argv", ["review.py", "--rate", "20260408-a1f3c9", "abc", "--json"])
+
+    with pytest.raises(SystemExit) as exc:
+        review.main()
+
+    assert exc.value.code == 1
+    output = json.loads(capsys.readouterr().out)
+    assert output["error"] == "Rating must be a number between 1 and 5."
+
+
+def test_review_json_rejects_invalid_index_timestamp(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file.write_text(
+        serialize_entry(
+            build_text_entry(
+                topic="AI Reasoning",
+                content="Only entry.",
+                description="Only description.",
+                source="",
+                note="",
+                tags=["writing"],
+                date_added="2026-04-08",
+                entry_id="20260408-a1f3c9",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    save_index(
+        {
+            "items": {
+                "20260408-a1f3c9": {
+                    "id": "20260408-a1f3c9",
+                    "topic": "ai-reasoning",
+                    "date": "2026-04-08",
+                    "rating": None,
+                    "last_surfaced": "not-a-timestamp",
+                    "times_surfaced": 1,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py", "--json"])
+
+    with pytest.raises(SystemExit) as exc:
+        review.main()
+
+    assert exc.value.code == 1
+    output = json.loads(capsys.readouterr().out)
+    assert "invalid timestamp" in output["error"].lower()
+
+
+def test_review_json_skips_when_not_enough_items(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["review.py", "--json"])
+    review.main()
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["status"] == "skip"
+    assert output["reason"] == "not_enough_items"
+    assert output["total_items"] == 0
+
+
+def test_review_json_skips_when_no_eligible_items(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file.write_text(
+        serialize_entry(
+            build_text_entry(
+                topic="AI Reasoning",
+                content="Only entry.",
+                description="Only description.",
+                source="",
+                note="",
+                tags=["writing"],
+                date_added="2026-04-08",
+                entry_id="20260408-a1f3c9",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    now = datetime.now(timezone.utc).isoformat()
+    save_index(
+        {
+            "items": {
+                "20260408-a1f3c9": {
+                    "id": "20260408-a1f3c9",
+                    "topic": "ai-reasoning",
+                    "date": "2026-04-08",
+                    "rating": None,
+                    "last_surfaced": now,
+                    "times_surfaced": 1,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py", "--json"])
+    review.main()
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["status"] == "skip"
+    assert output["reason"] == "no_eligible_items"

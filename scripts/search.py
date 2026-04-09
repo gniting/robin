@@ -3,9 +3,12 @@
 search.py — Search Robin's commonplace book
 
 Usage:
-  python3 search.py <query>           # Search entry bodies and sources
-  python3 search.py --topic <name>    # List all entries in a topic
-  python3 search.py --tags tag1,tag2  # Find entries with these tags
+  python3 search.py --state-dir /path/to/data/robin <query>           # Search entry bodies and sources
+  python3 search.py --state-dir /path/to/data/robin --topic <name>    # List all entries in a topic
+  python3 search.py --state-dir /path/to/data/robin --tags tag1,tag2  # Find entries with these tags
+
+Or set:
+  ROBIN_STATE_DIR=/path/to/data/robin
 """
 
 from __future__ import annotations

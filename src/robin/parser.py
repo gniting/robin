@@ -9,6 +9,13 @@ from robin.models import Entry
 SEPARATOR = "\n***\n"
 
 
+class RobinEntryParseError(ValueError):
+    def __init__(self, filepath: Path, chunk_index: int, message: str):
+        self.filepath = filepath
+        self.chunk_index = chunk_index
+        super().__init__(f"Failed to parse entry {chunk_index} in {filepath}: {message}")
+
+
 def topic_to_filename(topic: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "-", topic.strip().lower())
     slug = normalized.strip("-") or "untitled"
@@ -102,10 +109,13 @@ def load_topic_entries(filepath: Path) -> list[Entry]:
         return []
 
     entries: list[Entry] = []
-    for chunk in content.split(SEPARATOR):
+    for chunk_index, chunk in enumerate(content.split(SEPARATOR), start=1):
         if not chunk.strip():
             continue
-        entries.append(parse_entry(chunk.lstrip(), filepath.stem))
+        try:
+            entries.append(parse_entry(chunk.lstrip(), filepath.stem))
+        except ValueError as exc:
+            raise RobinEntryParseError(filepath, chunk_index, str(exc)) from exc
     return entries
 
 

@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from robin.config import config_dir, config_path, data_dir, index_path, load_config, load_index
+from robin.config import config_path, index_path, load_config, load_index, state_dir
+from robin.cli import search_main
+
+
+def test_load_config_missing_state_dir_exits_cleanly(monkeypatch):
+    monkeypatch.delenv("ROBIN_STATE_DIR", raising=False)
+
+    with pytest.raises(SystemExit, match="Pass --state-dir or set ROBIN_STATE_DIR"):
+        load_config()
 
 
 def test_load_config_missing_file_exits_cleanly(robin_env):
@@ -26,67 +36,46 @@ def test_load_index_invalid_json_exits_cleanly(robin_env):
         load_index()
 
 
-def test_paths_respect_robin_workspace(robin_env):
-    assert config_dir() == robin_env["config_dir"]
-    assert data_dir() == robin_env["data_dir"]
-    assert config_path() == robin_env["config_dir"] / "robin-config.json"
-    assert index_path() == robin_env["data_dir"] / "robin-review-index.json"
+def test_paths_respect_robin_state_dir_env(robin_env):
+    assert state_dir() == robin_env["state_dir"]
+    assert config_path() == robin_env["state_dir"] / "robin-config.json"
+    assert index_path() == robin_env["state_dir"] / "robin-review-index.json"
 
 
-def test_paths_can_be_discovered_from_cwd(monkeypatch, tmp_path):
-    workspace = tmp_path / "workspace"
-    state_dir = workspace / "data" / "robin"
-    state_dir.mkdir(parents=True)
-    nested = workspace / "nested" / "child"
-    nested.mkdir(parents=True)
-    monkeypatch.chdir(nested)
-    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
-    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_HOME", raising=False)
-    monkeypatch.delenv("HERMES_HOME", raising=False)
-    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    (state_dir / "robin-config.json").write_text("{}", encoding="utf-8")
+def test_cli_state_dir_overrides_env(tmp_path, monkeypatch, capsys):
+    env_state_dir = tmp_path / "env-state"
+    env_state_dir.mkdir(parents=True)
+    cli_state_dir = tmp_path / "cli-state"
+    cli_state_dir.mkdir(parents=True)
 
-    assert config_dir() == state_dir
-    assert data_dir() == state_dir
+    env_config = {
+        "vault_path": str(tmp_path / "env-vault"),
+        "topics_dir": "topics",
+        "media_dir": "media",
+        "min_items_before_review": 1,
+        "review_cooldown_days": 60,
+    }
+    cli_config = {
+        "vault_path": str(tmp_path / "cli-vault"),
+        "topics_dir": "topics",
+        "media_dir": "media",
+        "min_items_before_review": 1,
+        "review_cooldown_days": 60,
+    }
 
+    for state_dir, config in ((env_state_dir, env_config), (cli_state_dir, cli_config)):
+        vault = tmp_path / ("env-vault" if state_dir == env_state_dir else "cli-vault")
+        (vault / "topics").mkdir(parents=True)
+        (state_dir / "robin-config.json").write_text(json.dumps(config), encoding="utf-8")
+        (state_dir / "robin-review-index.json").write_text(json.dumps({"items": {}}), encoding="utf-8")
 
-def test_paths_fall_back_to_xdg(monkeypatch, tmp_path):
-    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
-    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_HOME", raising=False)
-    monkeypatch.delenv("HERMES_HOME", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    (tmp_path / "cli-vault" / "topics" / "focus.md").write_text(
+        "id: 20260409-a1f3c9c9\ndate_added: 2026-04-09\ndescription: test\n\nCLI state entry\n",
+        encoding="utf-8",
+    )
 
-    assert config_dir() == tmp_path / "cfg" / "robin"
-    assert data_dir() == tmp_path / "data" / "robin"
+    monkeypatch.setenv("ROBIN_STATE_DIR", str(env_state_dir))
+    search_main(["--state-dir", str(cli_state_dir)])
+    output = capsys.readouterr().out
 
-
-def test_paths_fall_back_to_hermes_home_for_compat(monkeypatch, tmp_path):
-    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
-    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_HOME", raising=False)
-    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path / ".hermes"))
-
-    assert config_dir() == tmp_path / ".hermes" / "data"
-    assert data_dir() == tmp_path / ".hermes" / "data"
-
-
-def test_data_dir_prefers_hermes_home_when_only_xdg_config_is_set(monkeypatch, tmp_path):
-    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
-    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
-    monkeypatch.delenv("ROBIN_HOME", raising=False)
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path / ".hermes"))
-
-    assert config_dir() == tmp_path / "cfg" / "robin"
-    assert data_dir() == tmp_path / ".hermes" / "data"
+    assert "Total: 1 entries" in output

@@ -39,12 +39,13 @@ def rebuild_index(entries: Iterable[Entry], old_index: dict) -> dict:
             "rating": previous.get("rating") if previous else None,
             "last_surfaced": previous.get("last_surfaced") if previous else None,
             "times_surfaced": previous.get("times_surfaced", 0) if previous else 0,
+            "_awaiting_rating": previous.get("_awaiting_rating", False) if previous else False,
         }
 
     return {"items": items}
 
 
-def ensure_entry_in_index(entry: Entry, index: dict) -> dict:
+def ensure_entry_in_index(entry: Entry, index: dict) -> None:
     index.setdefault("items", {})
     index["items"].setdefault(
         entry.entry_id,
@@ -55,6 +56,6 @@ def ensure_entry_in_index(entry: Entry, index: dict) -> dict:
             "rating": None,
             "last_surfaced": None,
             "times_surfaced": 0,
+            "_awaiting_rating": False,
         },
     )
-    return index

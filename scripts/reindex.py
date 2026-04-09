@@ -3,7 +3,10 @@
 reindex.py — Rebuild Robin's review index from topic files
 
 Usage:
-  python3 reindex.py
+  python3 reindex.py --state-dir /path/to/data/robin
+
+Or set:
+  ROBIN_STATE_DIR=/path/to/data/robin
 """
 
 from __future__ import annotations

@@ -1,10 +1,10 @@
 # Robin Guide
 
-This guide is for advanced users who want the full technical picture: storage layout, manual setup, CLI usage, review behavior, and troubleshooting.
+This guide is for advanced users who want manual control over Robin: state-directory setup, config files, CLI usage, file layout, and troubleshooting.
 
-## Recommended Storage Model
+## Storage Model
 
-Robin's preferred default is to keep content in the user's vault and Robin state in the agent workspace.
+Robin separates user content from Robin state.
 
 Recommended layout:
 
@@ -18,79 +18,95 @@ agent-workspace/
 vault_path/
   media/
     poetry/
-      20260409-a1f3.png
+      20260409-a1f3c9.png
   topics/
     reasoning.md
     poetry.md
     quotes.md
 ```
 
-This keeps Robin's operational state inside the workspace while leaving the vault focused on user content.
+- The vault stores user-facing content.
+- The Robin state directory stores config and review metadata.
+- Robin does not guess where its state lives.
 
-## Runtime Path Resolution
+## Runtime Contract
 
-Robin supports several ways to locate its config and review index.
+Every Robin command needs a state directory.
 
-Preferred path:
+Robin accepts both:
 
-- if `ROBIN_WORKSPACE` is set:
-  - config: `$ROBIN_WORKSPACE/data/robin/robin-config.json`
-  - review index: `$ROBIN_WORKSPACE/data/robin/robin-review-index.json`
+- `--state-dir /path/to/data/robin`
+- `ROBIN_STATE_DIR=/path/to/data/robin`
 
-Automatic discovery:
+Precedence:
 
-- if the current working directory or one of its parents contains `data/robin/robin-config.json`, Robin uses that `data/robin/` directory
+1. `--state-dir`
+2. `ROBIN_STATE_DIR`
+3. otherwise Robin exits with an error
 
-Advanced overrides:
+Expected files inside the state directory:
 
-- `ROBIN_CONFIG_FILE` for an explicit config path
-- `ROBIN_INDEX_FILE` for an explicit review index path
-- `ROBIN_HOME` for a separate Robin runtime root
+- `robin-config.json`
+- optionally `robin-review-index.json`
 
-Compatibility fallback:
+If neither `--state-dir` nor `ROBIN_STATE_DIR` is present, Robin exits with:
 
-- XDG config/data locations
-- `HERMES_HOME/data` when neither the workspace-local nor XDG paths are available
-
-## Install and Setup
-
-### Recommended agent-driven setup
-
-Ask your agent to:
-
-- install Robin
-- choose or confirm the vault path
-- run Robin setup
-- ensure `topics/` and `media/` exist inside the vault
-- ensure `data/robin/` exists inside the agent workspace
-
-Example prompts:
-
-- `Install Robin from GitHub and set it up for my vault at /path/to/my/vault.`
-- `Use Robin and prepare everything it needs inside my vault.`
-
-### Manual setup
-
-If you want to run setup yourself:
-
-```bash
-bash /path/to/robin/install.sh --vault /path/to/your/vault
+```text
+Robin state directory is not configured. Pass --state-dir or set ROBIN_STATE_DIR.
 ```
 
-Advanced override:
+## Manual Setup
+
+Create a state directory:
 
 ```bash
-bash /path/to/robin/install.sh --vault /path/to/your/vault --robin-home /path/to/robin-runtime
+mkdir -p /path/to/agent-workspace/data/robin
+mkdir -p /path/to/your/vault/topics
+mkdir -p /path/to/your/vault/media
 ```
 
-`install.sh`:
+Create `/path/to/agent-workspace/data/robin/robin-config.json`:
 
-- checks requirements
-- creates config and index files
-- creates `topics/` and `media/`
-- writes Robin state under `data/robin/` in the workspace by default
+```json
+{
+  "vault_path": "/path/to/your/vault",
+  "topics_dir": "topics",
+  "media_dir": "media",
+  "min_items_before_review": 30,
+  "review_cooldown_days": 60
+}
+```
 
-It does not install dependencies.
+`vault_path` is the only required config field. The remaining fields are optional and default to:
+
+- `topics_dir`: `topics`
+- `media_dir`: `media`
+- `min_items_before_review`: `30`
+- `review_cooldown_days`: `60`
+
+Optional: create `/path/to/agent-workspace/data/robin/robin-review-index.json`:
+
+```json
+{
+  "items": {}
+}
+```
+
+If the file is missing, Robin starts with an empty in-memory index and writes it when needed.
+
+Then either export the state dir:
+
+```bash
+export ROBIN_STATE_DIR=/path/to/agent-workspace/data/robin
+```
+
+Or pass it explicitly on each command:
+
+```bash
+python3 scripts/topics.py --state-dir /path/to/agent-workspace/data/robin
+```
+
+This is also the simplest setup verification step. A healthy empty setup returns `No topics yet. Start filing things with Robin!`
 
 ## Topic Files
 
@@ -103,34 +119,28 @@ Examples:
 - `Song Lyrics` -> `song-lyrics.md`
 - `AI/ML` -> `ai-ml.md`
 
-## Entry Format
-
-Entries are separated by `***`. Each entry has a frontmatter block, then a blank line, then the body text.
+Entries are separated by `***`. Each entry has frontmatter, then a blank line, then the body.
 
 Text example:
 
 ```text
-id: 20260408-a1f3
+id: 20260408-a1f3c9
 date_added: 2026-04-08
-source: https://example.com/article
 description: A short excerpt from a Paul Graham essay about optimizing for what matters. Useful as a general reminder when making tradeoff decisions.
+source: https://example.com/article
 tags: [ai, reasoning]
 
-**Source:** [article title](https://example.com/article)
-
 Notable excerpt or the thing you sent.
-
-**Robin note:** Brief curation note
 ```
 
 Image example:
 
 ```text
-id: 20260408-b7k2
+id: 20260408-b7k2d1
 date_added: 2026-04-08
 entry_type: image
 media_kind: image
-media_source: media/poetry/20260408-b7k2.png
+media_source: media/poetry/20260408-b7k2d1.png
 description: A photographed poem excerpt worth revisiting for tone and imagery.
 creator: Mary Oliver
 published_at: 1986
@@ -147,23 +157,21 @@ Field meanings:
 - `entry_type`: `text`, `image`, or `video`
 - `media_kind`: same as `entry_type` for media entries; omitted for text entries
 - `media_source`: copied relative path for images or external URL for videos
-- `source`: original article/source URL for text or optional metadata for media
-- `description`: required contextual explanation for every entry
+- `source`: original source URL when available
+- `description`: required context for every entry
 - `creator`, `published_at`, `summary`: required for media entries
 - `tags`: optional tag list
-
-Frontmatter keys are matched case-insensitively. A blank line must separate frontmatter from body.
 
 ## Media Rules
 
 Robin accepts media with these rules:
 
-- Local image files: accepted and copied into the vault media directory
-- Remote image URLs: not supported directly by Robin's CLI; the host agent should download or resolve them before filing
-- Video URLs: accepted and stored by reference
-- Uploaded or local video files: rejected
+- local image files: accepted and copied into the vault media directory
+- remote image URLs: not supported directly by Robin's CLI
+- video URLs: accepted and stored by reference
+- uploaded or local video files: rejected
 
-Robin will not store an image or video entry unless the host agent provides:
+Robin will not store a media entry unless the caller provides:
 
 - `description`
 - `creator`
@@ -171,6 +179,8 @@ Robin will not store an image or video entry unless the host agent provides:
 - `summary`
 
 If a media item is rejected, Robin stores nothing and returns an error.
+
+Robin also rejects any entry whose serialized body would contain a standalone `***` line, because `***` is Robin's internal entry separator.
 
 ## Search: Host Index vs Robin Search
 
@@ -190,6 +200,8 @@ Use `robin-search` for:
 - structured JSON output with stable ids, metadata, and ratings
 - fallback when host indexing is unavailable or stale
 
+`robin-search` can combine filters. If both `--topic` and `--tags` are provided, Robin first narrows to the topic and then applies the tag filter within that topic.
+
 ## CLI Reference
 
 Installed entry points:
@@ -208,18 +220,42 @@ Repo-local equivalents:
 - `python3 scripts/search.py`
 - `python3 scripts/topics.py`
 
+All Robin commands support `--state-dir`.
+
+Recommended path for agents:
+
+- run the repo-local `python3 scripts/*.py` commands directly
+
+Optional path for advanced users:
+
+- `pip install -e .`
+- then use the installed `robin-add`, `robin-review`, `robin-reindex`, `robin-search`, and `robin-topics` entry points
+
 Examples:
 
 ```bash
-robin-search "clear thinking"
-robin-review --rate 20260408-a1f3 5
-robin-topics --json
-robin-add --topic "reasoning" --content "The most important thing is to decide what you are optimizing for." --description "A short Paul Graham line about choosing the objective before optimizing. Useful when reviewing tradeoff-heavy decisions."
-robin-add --entry-type image --topic "poetry" --media-path ~/Downloads/poem.png --description "A photographed poem excerpt worth revisiting." --creator "Mary Oliver" --published-at "1986" --summary "An excerpt about attention and observation."
-robin-add --entry-type video --topic "talks" --media-url "https://www.youtube.com/watch?v=abc123" --description "A talk to revisit for its framing and examples." --creator "Speaker Name" --published-at "2025-01-01" --summary "A concise summary of the talk."
+python3 scripts/search.py --state-dir /path/to/data/robin "clear thinking" --json
+python3 scripts/review.py --state-dir /path/to/data/robin --json
+python3 scripts/review.py --state-dir /path/to/data/robin --status --json
+python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5
+python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5 --json
+python3 scripts/search.py --state-dir /path/to/data/robin --topic "AI Reasoning" --json
+python3 scripts/search.py --state-dir /path/to/data/robin --tags "writing,clarity" --json
+python3 scripts/search.py --state-dir /path/to/data/robin --topic "AI Reasoning" --tags "clarity" --json
+python3 scripts/topics.py --state-dir /path/to/data/robin --json
+python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "reasoning" --content "The most important thing is to decide what you are optimizing for." --description "A short Paul Graham line about choosing the objective before optimizing. Useful when reviewing tradeoff-heavy decisions." --json
+python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "writing" --content "Write as if speaking to a smart friend." --description "A reminder to keep prose conversational and clear." --source "https://example.com/article" --note "Pair this with other writing advice." --json
+python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "reasoning" --content "The map is not the territory." --description "A reminder that abstractions are not reality itself." --tags "thinking,quotes" --json
+python3 scripts/add_entry.py --state-dir /path/to/data/robin --entry-type image --topic "poetry" --media-path ~/Downloads/poem.png --description "A photographed poem excerpt worth revisiting." --creator "Mary Oliver" --published-at "1986" --summary "An excerpt about attention and observation." --json
+python3 scripts/add_entry.py --state-dir /path/to/data/robin --entry-type video --topic "talks" --media-url "https://www.youtube.com/watch?v=abc123" --description "A talk to revisit for its framing and examples." --creator "Speaker Name" --published-at "2025-01-01" --summary "A concise summary of the talk." --json
+python3 scripts/reindex.py --state-dir /path/to/data/robin
 ```
 
+The examples above use the repo-local `python3 scripts/*.py` path. If you installed the package with `pip install -e .`, the `robin-*` entry points are equivalent aliases.
+
 All CLI helpers support `--json`.
+
+Use `python3 scripts/reindex.py --state-dir <state-dir>` after manual edits to topic files, when rebuilding review state from existing markdown, or when importing legacy entries and wanting the review index rebuilt from disk.
 
 ## Review System
 
@@ -234,87 +270,40 @@ Review behavior:
 1. Robin waits until there are at least `min_items_before_review` items.
 2. It prefers unrated items first.
 3. Then lower-rated items.
-4. Then items least recently surfaced.
+4. Then items with the fewest total prior surfaces.
 5. It skips items surfaced within `review_cooldown_days`.
-6. Rating overwrites the previous rating and increments `times_surfaced`.
+6. When Robin surfaces an item, it immediately increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`.
+7. A subsequent `--rate` call for that surfaced item overwrites the previous rating and sets `_awaiting_rating` back to `false` without incrementing `times_surfaced` again.
+
+If `--rate` is called directly on an item that was not surfaced first, Robin still sets `last_surfaced`, increments `times_surfaced`, and keeps `_awaiting_rating` as `false`.
 
 Example index shape:
 
 ```json
 {
   "items": {
-    "20260408-a1f3": {
-      "id": "20260408-a1f3",
+    "20260408-a1f3c9": {
+      "id": "20260408-a1f3c9",
       "topic": "ai-reasoning",
       "date": "2026-04-08",
       "rating": null,
       "last_surfaced": "2026-04-08T10:00:00+00:00",
-      "times_surfaced": 0
+      "times_surfaced": 0,
+      "_awaiting_rating": false
     }
   }
 }
 ```
 
-## Configuration Reference
+`_awaiting_rating` is an internal review-state flag. It is `true` after Robin surfaces an item and becomes `false` again after that surface is rated.
 
-Example config:
+## Troubleshooting
 
-```json
-{
-  "vault_path": "/path/to/your/vault",
-  "topics_dir": "topics",
-  "media_dir": "media",
-  "min_items_before_review": 30,
-  "review_cooldown_days": 60,
-  "preferred_rating_scale": "1-5",
-  "file_naming": "kebab"
-}
-```
-
-| Key | Default | Description |
-|---|---|---|
-| `vault_path` | required | Path to your vault root |
-| `topics_dir` | `"topics"` | Subdirectory for topic files |
-| `media_dir` | `"media"` | Subdirectory for copied image assets |
-| `min_items_before_review` | `30` | Minimum items before review triggers |
-| `review_cooldown_days` | `60` | Days before an item can be surfaced again |
-| `preferred_rating_scale` | `"1-5"` | Rating scale |
-| `file_naming` | `"kebab"` | Filename convention |
-
-## Host Examples
-
-Robin is host-neutral. Use your host's normal local-skill mechanism.
-
-Hermes example install:
-
-```bash
-hermes skills install /path/to/robin
-```
-
-Hermes example review scheduling:
-
-```bash
-hermes cron create \
-  --name "robin:review" \
-  --prompt "Run Robin's review mode..." \
-  --schedule "0 12 * * 1-5" \
-  --skills robin \
-  --deliver origin
-```
-
-## Troubleshooting and Compatibility
-
-- New entries include a compact frontmatter `id`
-- New entries should include a 2-3 sentence `description` generated by the host agent
-- Older markdown entries without `id` still work
-- Reindex derives stable fallback ids for legacy entries
-- Local or uploaded video files are rejected
-- Topic files remain plain Markdown and are usable in tools like Obsidian and Logseq
-- If Robin cannot find its config, confirm you are running inside the workspace, or set `ROBIN_WORKSPACE`, `ROBIN_CONFIG_FILE`, or `ROBIN_INDEX_FILE`
-
-## Error Behavior
-
-- Missing required fields produce an error and the entry is not stored
-- Invalid image paths produce an error and the entry is not stored
-- Local or uploaded video files produce an error and the entry is not stored
-- `--json` mode returns machine-readable errors like `{"error": "..."}` for failed add operations
+- Config not found:
+  Create `robin-config.json` in the state directory and pass `--state-dir` or set `ROBIN_STATE_DIR`.
+- Review index not found:
+  Robin can start without it. If you want to create it manually, use `{"items": {}}`.
+- Media entry rejected:
+  Ensure the caller provided `description`, `creator`, `published_at`, and `summary`.
+- Image copy failed:
+  Confirm the local image path exists and the vault `media/` directory is writable.

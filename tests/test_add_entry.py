@@ -141,3 +141,55 @@ def test_add_uploaded_video_rejected(robin_env, monkeypatch, capsys):
 
     output = json.loads(capsys.readouterr().out)
     assert "Uploaded or local video files are not supported" in output["error"]
+
+
+def test_add_entry_rejects_reserved_separator_in_body(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "AI Reasoning",
+            "--content",
+            "First line.\n***\nSecond line.",
+            "--description",
+            "Advice worth revisiting.",
+            "--json",
+        ],
+    )
+
+    try:
+        add_entry.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected SystemExit for reserved separator rejection")
+
+    output = json.loads(capsys.readouterr().out)
+    assert "standalone '***' line" in output["error"]
+
+
+def test_add_entry_rejects_reserved_separator_at_end_of_body(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "AI Reasoning",
+            "--content",
+            "First line.\n***",
+            "--description",
+            "Advice worth revisiting.",
+            "--json",
+        ],
+    )
+
+    try:
+        add_entry.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected SystemExit for trailing reserved separator rejection")
+
+    output = json.loads(capsys.readouterr().out)
+    assert "standalone '***' line" in output["error"]
