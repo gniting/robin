@@ -4,16 +4,6 @@ Robin is a skill for your AI agent to help you keep a digital commonplace book. 
 
 > Dedicated to and named for [Robin Williams'](https://en.wikipedia.org/wiki/Robin_Williams) portrayal of Sean Maguire in *[Good Will Hunting](https://en.wikipedia.org/wiki/Good_Will_Hunting)* — a therapist who helped a brilliant but lost young man find his voice.
 
-
-```mermaid
-graph LR
-    U[You share a quote, note, article, image, or video link]
-    A[Your AI agent adds context and chooses a topic]
-    R[Robin stores it in your vault]
-    V[Vault keeps topic files, media, and review state]
-    S[Robin later resurfaces saved items through your agent]
-    U --> A --> R --> V --> S
-```
 ## What is a Commonplace Book?
 
 A commonplace book[[1](https://ryanholiday.net/how-and-why-to-keep-a-commonplace-book/)][[2](https://en.wikipedia.org/wiki/Commonplace_book)] is a personal collection of ideas, phrases, and passages worth keeping. Traditionally, it is a notebook where one gathers quotations, observations, arguments, anecdotes, and striking turns of phrase from what they read or hear, then organizes them so those pieces can be revisited and used later. 
