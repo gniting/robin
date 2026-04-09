@@ -86,6 +86,7 @@ vault_path/                       e.g. /opt/commonplace-book
 Entries are separated by `***` (NOT `---`). The `---` marker appears in two places per entry (closing frontmatter AND trailing separator), which makes naive string splitting ambiguous. `***` never appears in frontmatter or body, so splitting on it is reliable.
 
 ```
+id: 20260408-a1f3
 date_added: 2026-04-08
 source: https://example.com/article
 tags: [ai, reasoning]
@@ -96,6 +97,7 @@ Notable excerpt or the thing you sent.
 
 **Robin note:** Brief curation note
 ***
+id: 20260408-b7k2
 date_added: 2026-04-08
 source: https://example.com/other
 tags: [books]
@@ -113,12 +115,12 @@ Frontmatter parsing: keys are matched case-insensitively (`.lower()`). A blank l
 ```json
 {
   "items": {
-    "ai-reasoning:2026-04-08:001": {
+    "20260408-a1f3": {
+      "id": "20260408-a1f3",
       "topic": "ai-reasoning",
       "date": "2026-04-08",
-      "seq": "001",
       "rating": null,
-      "last_surfaced": "2026-04-08T10:00:00Z",
+      "last_surfaced": "2026-04-08T10:00:00+00:00",
       "times_surfaced": 0
     }
   },
@@ -129,7 +131,7 @@ Frontmatter parsing: keys are matched case-insensitively (`.lower()`). A blank l
 }
 ```
 
-Item identifier format: `topic:date:seq` where `seq` is a zero-padded sequence number for that topic+date combo. This allows multiple entries per topic per day without collision.
+Item identity lives in markdown frontmatter via `id`. The review index is derived state keyed by that id.
 
 ## Configuration Reference
 
@@ -147,7 +149,7 @@ Item identifier format: `topic:date:seq` where `seq` is a zero-padded sequence n
 - **Config lives outside skill folder** — updates to the skill do not overwrite user preferences
 - **Review index is separate from topic files** — keeps topic files clean and human-editable
 - **Rating always overwrites** — newer rating wins, tracked in index only
-- **Index key includes sequence number** — supports multiple entries per topic per day
+- **Index key is the stable entry id** — supports duplicates without relying on file position
 - **Index can be rebuilt** — `reindex.py` scans topic files and reconstructs the index from scratch
 - **Agent-agnostic** — works with any agent that implements a skills interface
 
@@ -156,4 +158,4 @@ Item identifier format: `topic:date:seq` where `seq` is a zero-padded sequence n
 - **Don't use `---` as entry separator** — it's used to close frontmatter. Use `***`.
 - **Case-insensitive frontmatter** — parse with `.lower()` on keys to handle any case variation.
 - **Blank line required after frontmatter** — the parser stops at the first blank line. Don't put body content on the same line as the last frontmatter field.
-- **Index key includes seq** — always use `topic:date:seq` format, never `topic:date`.
+- **Keep `id` stable** — changing it manually creates a new review item.

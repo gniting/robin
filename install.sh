@@ -134,7 +134,7 @@ main() {
   echo "  2. Start filing: send Robin content to collect"
   echo "  3. Set up review cron for periodic surfacing"
   echo ""
-  echo "For Herms users:"
+  echo "For Hermes users:"
   echo "  hermes skills install ~/.hermes/skills/personal/robin"
 }
 

@@ -13,7 +13,7 @@ Named for Robin Williams' portrayal of Sean Maguire in Good Will Hunting — a r
 ## Core Concepts
 
 - **Vault path**: where your Obsidian vault lives (local on the skill host)
-- **Topic files**: one markdown file per topic, entries appended chronologically, separated by `***`
+- **Topic files**: one markdown file per topic, entries appended chronologically, separated by `***`, each with a compact stable `id`
 - **Review index**: `~/.hermes/data/cb-review-index.json` — tracks rating, last surfaced, times surfaced per item
 - **Config**: `~/.hermes/data/cb-config.json` — user preferences, never overwritten on skill update
 - **Config example**: shipped in `references/cb-config.json.example` for first-run setup
@@ -82,6 +82,7 @@ vault_path/                       (e.g. /opt/commonplace-book)
 Entries are separated by `***` (NOT `---`). The `---` marker appears in two places per entry (closing frontmatter AND trailing separator), making it ambiguous for naive string splitting. `***` never appears in frontmatter or body, so splitting on it is reliable.
 
 ```
+id: 20260408-a1f3
 date_added: 2026-04-08
 source: https://example.com/article
 tags: [ai, reasoning]
@@ -92,6 +93,7 @@ Notable excerpt or the thing you sent.
 
 **Robin note:** Brief curation note
 ***
+id: 20260408-b7k2
 date_added: 2026-04-08
 source: https://example.com/other
 tags: [books]
@@ -109,12 +111,12 @@ Frontmatter parsing: keys are matched case-insensitively (`.lower()`). A blank l
 ```json
 {
   "items": {
-    "ai-reasoning:2026-04-08:001": {
+    "20260408-a1f3": {
+      "id": "20260408-a1f3",
       "topic": "ai-reasoning",
       "date": "2026-04-08",
-      "seq": "001",
       "rating": null,
-      "last_surfaced": "2026-04-08T10:00:00Z",
+      "last_surfaced": "2026-04-08T10:00:00+00:00",
       "times_surfaced": 0
     }
   },
@@ -125,7 +127,7 @@ Frontmatter parsing: keys are matched case-insensitively (`.lower()`). A blank l
 }
 ```
 
-Item identifier is `topic:date:seq` — `seq` is a zero-padded sequence number for that topic+date combo. This allows multiple entries per topic per day without key collision.
+Item identity lives in markdown frontmatter via `id`. The review index is derived state keyed by that `id`.
 
 ## Review Cron
 
@@ -158,7 +160,7 @@ hermes cron create \
 - Config lives outside skill folder — updates to the skill do not overwrite user preferences
 - Review index is separate from topic files — keeps topic files clean and human-editable
 - Rating always overwrites — newer rating wins, tracked in index only
-- Items identified by topic+date+seq — supports multiple entries per topic per day
+- Items identified by a stable frontmatter `id` — survives reindexing and same-day duplicates
 - Index can be rebuilt — `reindex.py` scans topic files and reconstructs the index from scratch
 - Agent-agnostic — works with any agent that implements a skills interface
 
@@ -167,4 +169,4 @@ hermes cron create \
 - Don't use `---` as entry separator — it's already used to close frontmatter. Use `***`.
 - Case-insensitive frontmatter — parse with `.lower()` on keys to handle any case variation.
 - Blank line required after frontmatter — the parser stops at the first blank line. Don't put body content on the same line as the last frontmatter field.
-- Index key includes seq — always use `topic:date:seq` format, never `topic:date`.
+- Keep `id` stable when manually editing entries — changing it creates a new review item.

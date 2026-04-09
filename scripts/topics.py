@@ -7,31 +7,17 @@ Usage:
   python3 topics.py --json  # Output as JSON
 """
 
+from __future__ import annotations
+
 import argparse
 import json
+import sys
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / ".hermes" / "data" / "cb-config.json"
-INDEX_PATH = Path.home() / ".hermes" / "data" / "cb-review-index.json"
-SEPARATOR = "\n***\n"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-
-def load_config():
-    with open(CONFIG_PATH) as f:
-        return json.load(f)
-
-
-def load_index():
-    with open(INDEX_PATH) as f:
-        return json.load(f)
-
-
-def count_entries_in_file(filepath: Path) -> int:
-    with open(filepath) as f:
-        content = f.read().strip()
-    if not content:
-        return 0
-    return content.count(SEPARATOR) + 1
+from robin.config import load_config, load_index
+from robin.parser import load_all_entries
 
 
 def main():
@@ -40,54 +26,37 @@ def main():
     args = parser.parse_args()
 
     config = load_config()
-    index = load_index()
+    index = load_index(config)
+    entries = load_all_entries(config)
 
-    vault = Path(config["vault_path"])
-    topics_dir = vault / config.get("topics_dir", "topics")
+    topics: dict[str, dict] = {}
+    for entry in entries:
+        topic_stats = topics.setdefault(
+            entry.topic,
+            {"topic": entry.topic, "filename": f"{entry.topic}.md", "entries": 0, "rated": 0, "unrated": 0},
+        )
+        topic_stats["entries"] += 1
+        if index.get("items", {}).get(entry.entry_id, {}).get("rating") is None:
+            topic_stats["unrated"] += 1
+        else:
+            topic_stats["rated"] += 1
 
-    if not topics_dir.exists():
-        print("No topics directory found." if not args.json else "{}")
-        return
-
-    topics = []
-    for filepath in sorted(topics_dir.glob("*.md")):
-        topic = filepath.stem
-        entry_count = count_entries_in_file(filepath)
-
-        rated = 0
-        unrated = 0
-        for key, item in index.get("items", {}).items():
-            # Keys are topic:date:seq — match by topic prefix
-            key_topic = key.split(":")[0]
-            if key_topic == topic:
-                if item.get("rating") is not None:
-                    rated += 1
-                else:
-                    unrated += 1
-
-        topics.append({
-            "topic": topic,
-            "filename": filepath.name,
-            "entries": entry_count,
-            "rated": rated,
-            "unrated": unrated
-        })
+    ordered_topics = [topics[key] for key in sorted(topics)]
 
     if args.json:
-        print(json.dumps(topics, indent=2))
+        print(json.dumps(ordered_topics, indent=2))
         return
 
-    if not topics:
+    if not ordered_topics:
         print("No topics yet. Start filing things with Robin!")
         return
 
-    total_entries = sum(t["entries"] for t in topics)
-    print(f"{len(topics)} topics, {total_entries} total entries\n")
-
-    for t in topics:
-        stars = "★" * t["rated"] + "☆" * t["unrated"] if t["rated"] or t["unrated"] else ""
-        print(f"  {t['topic']}")
-        print(f"    {t['entries']} entries  {stars}")
+    total_entries = sum(topic["entries"] for topic in ordered_topics)
+    print(f"{len(ordered_topics)} topics, {total_entries} total entries\n")
+    for topic in ordered_topics:
+        stars = "★" * topic["rated"] + "☆" * topic["unrated"] if topic["rated"] or topic["unrated"] else ""
+        print(f"  {topic['topic']}")
+        print(f"    {topic['entries']} entries  {stars}")
         print()
 
 

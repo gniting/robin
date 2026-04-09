@@ -35,8 +35,11 @@ robin-review = "scripts.review:main"
 robin-reindex = "scripts.reindex:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["scripts*"]
+where = [".", "src"]
+include = ["scripts*", "robin*"]
+
+[tool.setuptools.package-dir]
+"" = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
