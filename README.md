@@ -4,10 +4,10 @@ A digital commonplace book for AI agents — collect, curate, and periodically r
 
 ## What is a Commonplace Book?
 
-A commonplace book is a personal collection of ideas, phrases, and passages worth keeping. Traditionally, it is a notebook where someone gathers quotations, observations, arguments, anecdotes, and striking turns of phrase from what they read or hear, then organizes them so those pieces can be revisited and used later. One of its most practical benefits is that it sharpens vocabulary: by repeatedly noticing, recording, and returning to precise language, a reader begins to absorb better words, clearer sentence patterns, and more nuanced ways of expressing ideas. That expanded command of language tends to improve communication, because stronger vocabulary makes it easier to speak and write with accuracy, persuasion, and confidence. Over time, a commonplace book becomes more than a record of reading. It turns into a tool for better thinking, better communication, and, by extension, better work, relationships, and decision-making.
+A commonplace book[[1](https://ryanholiday.net/how-and-why-to-keep-a-commonplace-book/)][[2](https://en.wikipedia.org/wiki/Commonplace_book)] is a personal collection of ideas, phrases, and passages worth keeping. Traditionally, it is a notebook where someone gathers quotations, observations, arguments, anecdotes, and striking turns of phrase from what they read or hear, then organizes them so those pieces can be revisited and used later. One of its most practical benefits is that it sharpens vocabulary: by repeatedly noticing, recording, and returning to precise language, a reader begins to absorb better words, clearer sentence patterns, and more nuanced ways of expressing ideas. That expanded command of language tends to improve communication, because stronger vocabulary makes it easier to speak and write with accuracy, persuasion, and confidence. Over time, a commonplace book becomes more than a record of reading. It turns into a tool for better thinking, better communication, and, by extension, better work, relationships, and decision-making.
 
 
-> Named for Robin Williams' portrayal of Sean Maguire in *Good Will Hunting* — a therapist who helped a brilliant but lost young man find his voice.
+> Named for [Robin Williams'](https://en.wikipedia.org/wiki/Robin_Williams) portrayal of Sean Maguire in *[Good Will Hunting](https://en.wikipedia.org/wiki/Good_Will_Hunting)* — a therapist who helped a brilliant but lost young man find his voice.
 
 ## Features
 
@@ -103,9 +103,10 @@ Topic filename format: lowercase, spaces become dashes (e.g. "Song Lyrics" -> `s
 
 ## Topic File Format
 
-Entries are separated by `***`. Each entry has a frontmatter block (key:value lines) followed by a blank line, then the body text.
+Entries are separated by `***`. Each entry has a frontmatter block (key:value lines) followed by a blank line, then the body text. New entries carry a compact stable `id` so review state survives reindexing and manual file edits.
 
 ```
+id: 20260408-a1f3
 date_added: 2026-04-08
 source: https://example.com/article
 tags: [ai, reasoning]
@@ -116,6 +117,7 @@ Notable excerpt or the thing you sent.
 
 **Robin note:** Brief curation note
 ***
+id: 20260408-b7k2
 date_added: 2026-04-08
 source: https://example.com/other
 tags: [books]
@@ -127,16 +129,49 @@ Frontmatter keys are matched case-insensitively. A blank line must separate fron
 
 ## Commands
 
-- `robin review` — Manually trigger a review cycle
-- `robin reindex` — Rebuild review index from topic files
-- `robin search <query>` — Search all topics for matching entries
-- `robin topics` — List all existing topics
-- `robin add` — File something new (or just send content directly)
-- `robin setup` — First-run config wizard
+Skill actions:
+`robin review` — Manually trigger a review cycle
+`robin reindex` — Rebuild review index from topic files
+`robin search <query>` — Search all topics for matching entries
+`robin topics` — List all existing topics
+`robin add` — File something new (or just send content directly)
+`robin setup` — First-run config wizard
+
+Installed CLI entry points:
+`robin-add`
+`robin-review`
+`robin-reindex`
+`robin-search`
+`robin-topics`
+
+Repo-local script entry points:
+`python3 scripts/add_entry.py`
+`python3 scripts/review.py`
+`python3 scripts/reindex.py`
+`python3 scripts/search.py`
+`python3 scripts/topics.py`
+
+Examples:
+
+```bash
+robin-search "clear thinking"
+robin-review --rate 20260408-a1f3 5
+robin-topics --json
+```
+
+## Implementation Layout
+
+Robin is structured as a small Python package plus thin CLI wrappers:
+
+```text
+scripts/     CLI wrappers for add/review/reindex/search/topics
+src/robin/   shared config, parser, serializer, index, review, and search logic
+tests/       parser and workflow tests
+```
 
 ## Review System
 
-Robin maintains a review index (`~/.hermes/data/cb-review-index.json`) that tracks:
+Robin maintains a review index (`~/.hermes/data/cb-review-index.json`) keyed by entry `id`. It tracks:
 
 - rating — your 1–5 rating (overwritten on each new rating)
 - last_surfaced — when Robin last showed you this item
@@ -151,6 +186,21 @@ When review fires:
 5. Robin updates the index
 
 Robin only triggers a review when you have at least `min_items_before_review` items in your vault.
+
+Ratings are applied by stable entry id, for example:
+
+```bash
+robin-review --rate 20260408-a1f3 5
+```
+
+All CLI helpers support `--json` for agent-friendly integration.
+
+## Compatibility Notes
+
+- New entries include a compact frontmatter `id`.
+- Older markdown entries without `id` still work.
+- Reindex derives stable fallback ids for legacy entries that do not yet carry one.
+- Topic files remain plain markdown and are intended to stay usable in tools like Obsidian and Logseq.
 
 ## Configuration Reference
 
