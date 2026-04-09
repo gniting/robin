@@ -2,29 +2,42 @@ from __future__ import annotations
 
 from robin.index import rebuild_index
 from robin.parser import load_all_entries
+from robin.serializer import build_text_entry, serialize_entry
 
 
 def test_reindex_preserves_legacy_review_state(robin_env):
     topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
     topic_file.write_text(
-        "\n".join(
+        "\n***\n".join(
             [
-                "id: 20260408-a1f3",
-                "date_added: 2026-04-08",
-                "source: ",
-                "tags: [writing]",
-                "",
-                "First entry.",
-                "***",
-                "id: 20260408-b7k2",
-                "date_added: 2026-04-08",
-                "source: ",
-                "tags: [writing]",
-                "",
-                "Second entry.",
-                "",
+                serialize_entry(
+                    build_text_entry(
+                        topic="AI Reasoning",
+                        content="First entry.",
+                        description="First description.",
+                        source="",
+                        note="",
+                        tags=["writing"],
+                        date_added="2026-04-08",
+                        entry_id="20260408-a1f3",
+                    )
+                ),
+                serialize_entry(
+                    build_text_entry(
+                        topic="AI Reasoning",
+                        content="Second entry.",
+                        description="Second description.",
+                        source="",
+                        note="",
+                        tags=["writing"],
+                        date_added="2026-04-08",
+                        entry_id="20260408-b7k2",
+                    )
+                ),
             ]
         )
+        + "\n",
+        encoding="utf-8",
     )
 
     old_index = {
@@ -40,7 +53,6 @@ def test_reindex_preserves_legacy_review_state(robin_env):
                 "times_surfaced": 1,
             },
         },
-        "config": {"min_items_before_review": 1, "review_cooldown_days": 60},
     }
 
     rebuilt = rebuild_index(load_all_entries({
@@ -51,4 +63,3 @@ def test_reindex_preserves_legacy_review_state(robin_env):
     assert rebuilt["items"]["20260408-a1f3"]["rating"] == 2
     assert rebuilt["items"]["20260408-a1f3"]["times_surfaced"] == 4
     assert rebuilt["items"]["20260408-b7k2"]["rating"] == 5
-

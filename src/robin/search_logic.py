@@ -8,7 +8,14 @@ def search_entries(entries: list[Entry], query: str) -> list[Entry]:
     return [
         entry
         for entry in entries
-        if query_lower in entry.body.lower() or query_lower in entry.source.lower()
+        if query_lower in entry.body.lower()
+        or query_lower in entry.source.lower()
+        or query_lower in entry.description.lower()
+        or query_lower in entry.summary.lower()
+        or query_lower in entry.creator.lower()
+        or query_lower in entry.published_at.lower()
+        or query_lower in entry.media_source.lower()
+        or any(query_lower in tag.lower() for tag in entry.tags)
     ]
 
 
@@ -23,4 +30,3 @@ def filter_by_tags(entries: list[Entry], tags: list[str]) -> list[Entry]:
         for entry in entries
         if normalized.issubset({tag.lower() for tag in entry.tags})
     ]
-

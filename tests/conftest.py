@@ -13,30 +13,40 @@ sys.path.insert(0, str(ROOT / "src"))
 
 @pytest.fixture()
 def robin_env(tmp_path, monkeypatch):
-    hermes_home = tmp_path / ".hermes"
-    data_dir = hermes_home / "data"
+    robin_home = tmp_path / ".robin"
+    config_dir = robin_home / "config"
+    data_dir = robin_home / "data"
+    config_dir.mkdir(parents=True)
     data_dir.mkdir(parents=True)
 
     vault_path = tmp_path / "vault"
     (vault_path / "topics").mkdir(parents=True)
 
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+    monkeypatch.delenv("HERMES_HOME", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.setenv("ROBIN_HOME", str(robin_home))
 
     config = {
         "vault_path": str(vault_path),
         "topics_dir": "topics",
+        "media_dir": "media",
         "min_items_before_review": 1,
         "review_cooldown_days": 60,
         "preferred_rating_scale": "1-5",
         "file_naming": "kebab",
     }
-    (data_dir / "cb-config.json").write_text(json.dumps(config, indent=2))
-    (data_dir / "cb-review-index.json").write_text(
-        json.dumps(
-            {"items": {}, "config": {"min_items_before_review": 1, "review_cooldown_days": 60}},
-            indent=2,
-        )
+    (config_dir / "robin-config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+    (data_dir / "robin-review-index.json").write_text(
+        json.dumps({"items": {}}, indent=2),
+        encoding="utf-8",
     )
 
-    return {"tmp_path": tmp_path, "hermes_home": hermes_home, "vault_path": vault_path}
+    return {
+        "tmp_path": tmp_path,
+        "robin_home": robin_home,
+        "config_dir": config_dir,
+        "data_dir": data_dir,
+        "vault_path": vault_path,
+    }

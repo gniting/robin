@@ -28,15 +28,15 @@ dependencies = []
 dev = ["pytest", "pytest-cov"]
 
 [project.scripts]
-robin-add = "scripts.add_entry:main"
-robin-search = "scripts.search:main"
-robin-topics = "scripts.topics:main"
-robin-review = "scripts.review:main"
-robin-reindex = "scripts.reindex:main"
+robin-add = "robin.cli:add_main"
+robin-search = "robin.cli:search_main"
+robin-topics = "robin.cli:topics_main"
+robin-review = "robin.cli:review_main"
+robin-reindex = "robin.cli:reindex_main"
 
 [tool.setuptools.packages.find]
-where = [".", "src"]
-include = ["scripts*", "robin*"]
+where = ["src"]
+include = ["robin*"]
 
 [tool.setuptools.package-dir]
 "" = "src"

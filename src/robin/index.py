@@ -41,7 +41,7 @@ def rebuild_index(entries: Iterable[Entry], old_index: dict) -> dict:
             "times_surfaced": previous.get("times_surfaced", 0) if previous else 0,
         }
 
-    return {"items": items, "config": old_index.get("config", {})}
+    return {"items": items}
 
 
 def ensure_entry_in_index(entry: Entry, index: dict) -> dict:
@@ -58,4 +58,3 @@ def ensure_entry_in_index(entry: Entry, index: dict) -> dict:
         },
     )
     return index
-

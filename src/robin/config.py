@@ -5,51 +5,78 @@ import os
 from pathlib import Path
 
 
-def hermes_home() -> Path:
-    return Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
+def _xdg_config_root() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+
+
+def _xdg_data_root() -> Path:
+    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+
+
+def config_dir() -> Path:
+    robin_home = os.environ.get("ROBIN_HOME")
+    if robin_home:
+        return Path(robin_home) / "config"
+    if os.environ.get("XDG_CONFIG_HOME"):
+        return _xdg_config_root() / "robin"
+    hermes_home = os.environ.get("HERMES_HOME")
+    if hermes_home:
+        return Path(hermes_home) / "data"
+    return _xdg_config_root() / "robin"
 
 
 def data_dir() -> Path:
-    return hermes_home() / "data"
+    robin_home = os.environ.get("ROBIN_HOME")
+    if robin_home:
+        return Path(robin_home) / "data"
+    if os.environ.get("XDG_DATA_HOME"):
+        return _xdg_data_root() / "robin"
+    hermes_home = os.environ.get("HERMES_HOME")
+    if hermes_home:
+        return Path(hermes_home) / "data"
+    return _xdg_data_root() / "robin"
 
 
 def config_path() -> Path:
-    return data_dir() / "cb-config.json"
+    return config_dir() / "robin-config.json"
 
 
 def index_path() -> Path:
-    return data_dir() / "cb-review-index.json"
+    return data_dir() / "robin-review-index.json"
 
 
 def load_config() -> dict:
-    with config_path().open() as f:
-        return json.load(f)
+    path = config_path()
+    try:
+        with path.open(encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError as exc:
+        raise SystemExit(f"Config not found at {path}. Run install.sh first.") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Config at {path} is invalid JSON: {exc}") from exc
 
 
-def empty_index(config: dict | None = None) -> dict:
-    review_config = {
-        "min_items_before_review": (config or {}).get("min_items_before_review", 30),
-        "review_cooldown_days": (config or {}).get("review_cooldown_days", 60),
-    }
-    return {"items": {}, "config": review_config}
+def empty_index() -> dict:
+    return {"items": {}}
 
 
-def load_index(config: dict | None = None) -> dict:
+def load_index() -> dict:
     path = index_path()
     if path.exists():
-        with path.open() as f:
-            data = json.load(f)
+        try:
+            with path.open(encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"Review index at {path} is invalid JSON: {exc}") from exc
     else:
-        data = empty_index(config)
+        data = empty_index()
 
     data.setdefault("items", {})
-    data.setdefault("config", empty_index(config)["config"])
     return data
 
 
 def save_index(index: dict) -> None:
     path = index_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         json.dump(index, f, indent=2, sort_keys=True)
-
