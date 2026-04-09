@@ -1,58 +1,100 @@
 # Robin Guide
 
-This guide covers the detailed behavior and reference material for Robin.
+This guide is for advanced users who want the full technical picture: storage layout, manual setup, CLI usage, review behavior, and troubleshooting.
 
-## Runtime Paths
+## Recommended Storage Model
 
-Robin stores runtime state outside the skill directory.
+Robin's preferred default is to keep content in the user's vault and Robin state in the agent workspace.
 
-- If `ROBIN_HOME` is set:
-  - config: `$ROBIN_HOME/config/robin-config.json`
-  - review index: `$ROBIN_HOME/data/robin-review-index.json`
-- Otherwise, Robin uses XDG defaults:
-  - config: `${XDG_CONFIG_HOME:-~/.config}/robin/robin-config.json`
-  - review index: `${XDG_DATA_HOME:-~/.local/share}/robin/robin-review-index.json`
-- Compatibility fallback:
-  - if neither `ROBIN_HOME` nor the relevant XDG variable is set, Robin can use `HERMES_HOME/data`
-
-## Install Behavior
-
-Run:
-
-```bash
-bash /path/to/robin/install.sh
-```
-
-Optional:
-
-```bash
-bash /path/to/robin/install.sh --robin-home /path/to/robin-runtime
-```
-
-`install.sh`:
-
-- checks system requirements
-- creates Robin-owned config/data directories
-- initializes `robin-config.json`
-- initializes `robin-review-index.json`
-- creates the configured vault `topics/` and `media/` directories when `vault_path` is available
-
-It does not install dependencies.
-
-## Vault Structure
+Recommended layout:
 
 ```text
+agent-workspace/
+  data/
+    robin/
+      robin-config.json
+      robin-review-index.json
+
 vault_path/
   media/
     poetry/
       20260409-a1f3.png
   topics/
     reasoning.md
-    lyrics.md
     poetry.md
-    idioms.md
     quotes.md
 ```
+
+This keeps Robin's operational state inside the workspace while leaving the vault focused on user content.
+
+## Runtime Path Resolution
+
+Robin supports several ways to locate its config and review index.
+
+Preferred path:
+
+- if `ROBIN_WORKSPACE` is set:
+  - config: `$ROBIN_WORKSPACE/data/robin/robin-config.json`
+  - review index: `$ROBIN_WORKSPACE/data/robin/robin-review-index.json`
+
+Automatic discovery:
+
+- if the current working directory or one of its parents contains `data/robin/robin-config.json`, Robin uses that `data/robin/` directory
+
+Advanced overrides:
+
+- `ROBIN_CONFIG_FILE` for an explicit config path
+- `ROBIN_INDEX_FILE` for an explicit review index path
+- `ROBIN_HOME` for a separate Robin runtime root
+
+Compatibility fallback:
+
+- XDG config/data locations
+- `HERMES_HOME/data` when neither the workspace-local nor XDG paths are available
+
+## Install and Setup
+
+### Recommended agent-driven setup
+
+Ask your agent to:
+
+- install Robin
+- choose or confirm the vault path
+- run Robin setup
+- ensure `topics/` and `media/` exist inside the vault
+- ensure `data/robin/` exists inside the agent workspace
+
+Example prompts:
+
+- `Install Robin from GitHub and set it up for my vault at /path/to/my/vault.`
+- `Use Robin and prepare everything it needs inside my vault.`
+
+### Manual setup
+
+If you want to run setup yourself:
+
+```bash
+bash /path/to/robin/install.sh --vault /path/to/your/vault
+```
+
+Advanced override:
+
+```bash
+bash /path/to/robin/install.sh --vault /path/to/your/vault --robin-home /path/to/robin-runtime
+```
+
+`install.sh`:
+
+- checks requirements
+- creates config and index files
+- creates `topics/` and `media/`
+- writes Robin state under `data/robin/` in the workspace by default
+
+It does not install dependencies.
+
+## Topic Files
+
+Robin stores content in topic-organized Markdown files under `topics/`.
 
 Topic filenames use lowercase slugs with non-alphanumeric characters normalized to dashes.
 
@@ -61,7 +103,7 @@ Examples:
 - `Song Lyrics` -> `song-lyrics.md`
 - `AI/ML` -> `ai-ml.md`
 
-## Topic File Format
+## Entry Format
 
 Entries are separated by `***`. Each entry has a frontmatter block, then a blank line, then the body text.
 
@@ -130,25 +172,25 @@ Robin will not store an image or video entry unless the host agent provides:
 
 If a media item is rejected, Robin stores nothing and returns an error.
 
-## CLI Reference
+## Search: Host Index vs Robin Search
 
-Host agents should index Robin topic files when they support normal file search. That gives the agent broad semantic retrieval across the whole workspace.
-
-`robin-search` still matters because it is Robin-aware. It understands Robin's own structure and returns structured results with fields like stable entry id, topic, tags, media metadata, and rating.
+If your agent supports file indexing, it should index Robin topic files like any other Markdown content.
 
 Use host/global search for:
 
 - broad semantic recall across all user content
-- exploratory queries where Robin is only one possible source
+- exploratory queries where Robin may be only one source
 
 Use `robin-search` for:
 
-- Robin-specific queries
+- Robin-specific lookup
 - topic filtering
 - tag filtering
-- deterministic Robin entry lookup
-- retrieving structured Robin fields in JSON
-- cases where host indexing is unavailable or stale
+- deterministic lookup of Robin entries
+- structured JSON output with stable ids, metadata, and ratings
+- fallback when host indexing is unavailable or stale
+
+## CLI Reference
 
 Installed entry points:
 
@@ -181,7 +223,7 @@ All CLI helpers support `--json`.
 
 ## Review System
 
-Robin maintains a review index keyed by entry `id`. It stores only review state:
+Robin maintains a review index keyed by entry `id`. It stores:
 
 - `rating`
 - `last_surfaced`
@@ -189,10 +231,10 @@ Robin maintains a review index keyed by entry `id`. It stores only review state:
 
 Review behavior:
 
-1. Robin waits until you have at least `min_items_before_review` items.
+1. Robin waits until there are at least `min_items_before_review` items.
 2. It prefers unrated items first.
-3. Then it prefers lower-rated items.
-4. Then it prefers items least recently surfaced.
+3. Then lower-rated items.
+4. Then items least recently surfaced.
 5. It skips items surfaced within `review_cooldown_days`.
 6. Rating overwrites the previous rating and increments `times_surfaced`.
 
@@ -234,7 +276,7 @@ Example config:
 | `vault_path` | required | Path to your vault root |
 | `topics_dir` | `"topics"` | Subdirectory for topic files |
 | `media_dir` | `"media"` | Subdirectory for copied image assets |
-| `min_items_before_review` | `30` | Min items before review triggers |
+| `min_items_before_review` | `30` | Minimum items before review triggers |
 | `review_cooldown_days` | `60` | Days before an item can be surfaced again |
 | `preferred_rating_scale` | `"1-5"` | Rating scale |
 | `file_naming` | `"kebab"` | Filename convention |
@@ -260,15 +302,15 @@ hermes cron create \
   --deliver origin
 ```
 
-Other hosts such as OpenClaw, Claude Code, or Codex should load the same directory using their own local-skill mechanism.
-
-## Compatibility Notes
+## Troubleshooting and Compatibility
 
 - New entries include a compact frontmatter `id`
 - New entries should include a 2-3 sentence `description` generated by the host agent
 - Older markdown entries without `id` still work
 - Reindex derives stable fallback ids for legacy entries
-- Topic files remain plain markdown and are intended to stay usable in tools like Obsidian and Logseq
+- Local or uploaded video files are rejected
+- Topic files remain plain Markdown and are usable in tools like Obsidian and Logseq
+- If Robin cannot find its config, confirm you are running inside the workspace, or set `ROBIN_WORKSPACE`, `ROBIN_CONFIG_FILE`, or `ROBIN_INDEX_FILE`
 
 ## Error Behavior
 
@@ -276,13 +318,3 @@ Other hosts such as OpenClaw, Claude Code, or Codex should load the same directo
 - Invalid image paths produce an error and the entry is not stored
 - Local or uploaded video files produce an error and the entry is not stored
 - `--json` mode returns machine-readable errors like `{"error": "..."}` for failed add operations
-
-## Syncing to Other Devices
-
-Robin writes to a local vault path. To access it from other devices:
-
-- Rsync over SSH
-- SMB share
-- Git
-
-Syncing is not built into Robin.

@@ -26,14 +26,37 @@ def test_load_index_invalid_json_exits_cleanly(robin_env):
         load_index()
 
 
-def test_paths_respect_robin_home(robin_env):
+def test_paths_respect_robin_workspace(robin_env):
     assert config_dir() == robin_env["config_dir"]
     assert data_dir() == robin_env["data_dir"]
     assert config_path() == robin_env["config_dir"] / "robin-config.json"
     assert index_path() == robin_env["data_dir"] / "robin-review-index.json"
 
 
+def test_paths_can_be_discovered_from_cwd(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    state_dir = workspace / "data" / "robin"
+    state_dir.mkdir(parents=True)
+    nested = workspace / "nested" / "child"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
+    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
+    monkeypatch.delenv("ROBIN_HOME", raising=False)
+    monkeypatch.delenv("HERMES_HOME", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    (state_dir / "robin-config.json").write_text("{}", encoding="utf-8")
+
+    assert config_dir() == state_dir
+    assert data_dir() == state_dir
+
+
 def test_paths_fall_back_to_xdg(monkeypatch, tmp_path):
+    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
+    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
     monkeypatch.delenv("ROBIN_HOME", raising=False)
     monkeypatch.delenv("HERMES_HOME", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
@@ -44,6 +67,9 @@ def test_paths_fall_back_to_xdg(monkeypatch, tmp_path):
 
 
 def test_paths_fall_back_to_hermes_home_for_compat(monkeypatch, tmp_path):
+    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
+    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
     monkeypatch.delenv("ROBIN_HOME", raising=False)
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
@@ -54,6 +80,9 @@ def test_paths_fall_back_to_hermes_home_for_compat(monkeypatch, tmp_path):
 
 
 def test_data_dir_prefers_hermes_home_when_only_xdg_config_is_set(monkeypatch, tmp_path):
+    monkeypatch.delenv("ROBIN_WORKSPACE", raising=False)
+    monkeypatch.delenv("ROBIN_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("ROBIN_INDEX_FILE", raising=False)
     monkeypatch.delenv("ROBIN_HOME", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)

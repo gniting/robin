@@ -18,17 +18,17 @@ Named for Robin Williams' portrayal of Sean Maguire in Good Will Hunting — a r
 - **Vault path**: where your Obsidian vault lives (local on the skill host)
 - **Topic files**: one markdown file per topic, entries appended chronologically, separated by `***`, each with a compact stable `id`
 - **Media directory**: copied image assets live under `vault_path/media/` by default
-- **Review index**: Robin-owned runtime data file that tracks rating, last surfaced, and times surfaced per item
-- **Config**: Robin-owned runtime config file for user preferences, never overwritten on skill update
+- **Review index**: stored under `data/robin/robin-review-index.json` in the agent workspace by default
+- **Config**: stored under `data/robin/robin-config.json` in the agent workspace by default
 - **Config example**: shipped in `references/robin-config.json.example` for first-run setup
 
 ## Host Compatibility
 
 Robin is host-neutral.
 
-- Preferred runtime root: `ROBIN_HOME`
-- Default runtime paths: XDG config/data locations
-- Compatibility fallback: `HERMES_HOME/data` if present and no Robin/XDG location is configured
+- Preferred runtime root: the agent workspace under `data/robin/`
+- Advanced overrides: `ROBIN_WORKSPACE`, `ROBIN_CONFIG_FILE`, `ROBIN_INDEX_FILE`, `ROBIN_HOME`
+- Compatibility fallback: XDG or `HERMES_HOME/data` if no workspace-local state is discoverable
 - Required host capabilities:
   - local filesystem access
   - ability to run bundled Python scripts
@@ -211,16 +211,15 @@ vault_path/                       (e.g. /path/to/your/vault)
     books-to-read.md
     ...
 
-$ROBIN_HOME/                      if ROBIN_HOME is set
-  config/
-    robin-config.json
+agent-workspace/
   data/
-    robin-review-index.json
+    robin/
+      robin-config.json
+      robin-review-index.json
 
-${XDG_CONFIG_HOME:-~/.config}/robin/
-  robin-config.json
-${XDG_DATA_HOME:-~/.local/share}/robin/
-  robin-review-index.json
+$ROBIN_HOME/                      advanced override if ROBIN_HOME is set
+  config/ or data/
+    robin-*.json
 
 skill directory/
   SKILL.md
@@ -291,7 +290,7 @@ Field expectations:
 }
 ```
 
-Item identity lives in markdown frontmatter via `id`. The review index is derived state keyed by that `id`. Review settings such as `min_items_before_review` and `review_cooldown_days` live only in `robin-config.json`.
+Item identity lives in markdown frontmatter via `id`. The review index is derived state keyed by that `id`. Review settings such as `min_items_before_review` and `review_cooldown_days` live only in `robin-config.json`, which is stored under `data/robin/` in the agent workspace by default.
 
 ## Review Cron
 

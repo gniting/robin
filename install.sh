@@ -2,15 +2,24 @@
 set -e
 
 # Robin install script
-# Usage: bash install.sh [--vault PATH] [--robin-home PATH]
+# Usage: bash install.sh --vault PATH [--workspace PATH] [--robin-home PATH]
 
 ROBIN_HOME="${ROBIN_HOME:-}"
+WORKSPACE_PATH="${ROBIN_WORKSPACE:-}"
 VAULT_PATH=""
 FORCE=0
 declare -a FAILURES=()
 
 resolve_paths() {
-  if [[ -n "$ROBIN_HOME" ]]; then
+  if [[ -n "$WORKSPACE_PATH" ]]; then
+    STATE_DIR="$WORKSPACE_PATH/data/robin"
+    CONFIG_DIR="$STATE_DIR"
+    DATA_DIR="$STATE_DIR"
+  elif [[ -n "$VAULT_PATH" ]]; then
+    STATE_DIR="$PWD/data/robin"
+    CONFIG_DIR="$STATE_DIR"
+    DATA_DIR="$STATE_DIR"
+  elif [[ -n "$ROBIN_HOME" ]]; then
     CONFIG_DIR="$ROBIN_HOME/config"
     DATA_DIR="$ROBIN_HOME/data"
   elif [[ -n "${XDG_CONFIG_HOME:-}" || -n "${XDG_DATA_HOME:-}" ]]; then
@@ -33,6 +42,10 @@ parse_args() {
     case $1 in
       --vault)
         VAULT_PATH="$2"
+        shift 2
+        ;;
+      --workspace)
+        WORKSPACE_PATH="$2"
         shift 2
         ;;
       --robin-home)
@@ -89,8 +102,14 @@ check_requirements() {
     record_failure "cannot create data directory at $DATA_DIR"
   fi
 
-  if [[ -n "$VAULT_PATH" ]]; then
+  if [[ -z "$VAULT_PATH" ]]; then
+    record_failure "--vault is required"
+  elif [[ -n "$VAULT_PATH" ]]; then
     mkdir -p "$VAULT_PATH" 2>/dev/null || record_failure "cannot create or write to vault path $VAULT_PATH"
+  fi
+
+  if [[ -n "$WORKSPACE_PATH" ]]; then
+    mkdir -p "$WORKSPACE_PATH" 2>/dev/null || record_failure "cannot create or write to workspace path $WORKSPACE_PATH"
   fi
 
   if [[ ${#FAILURES[@]} -gt 0 ]]; then
@@ -201,6 +220,8 @@ main() {
   resolve_paths
 
   [[ -n "$ROBIN_HOME" ]] && echo "ROBIN_HOME:  $ROBIN_HOME"
+  [[ -n "$WORKSPACE_PATH" ]] && echo "WORKSPACE:   $WORKSPACE_PATH"
+  echo "STATE_DIR:   $STATE_DIR"
   echo "CONFIG_DIR:  $CONFIG_DIR"
   echo "DATA_DIR:    $DATA_DIR"
   [[ -n "$VAULT_PATH" ]] && echo "VAULT:       $VAULT_PATH"
@@ -214,7 +235,7 @@ main() {
 
   echo ""
   echo "Done! Next steps:"
-  echo "  1. Edit $CONFIG_FILE to set your vault_path"
+  echo "  1. Confirm your agent can access $VAULT_PATH"
   echo "  2. Start filing: send Robin content to collect"
   echo "  3. Set up periodic review in your agent host"
 }

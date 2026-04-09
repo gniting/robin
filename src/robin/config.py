@@ -5,6 +5,15 @@ import os
 from pathlib import Path
 
 
+def _cwd_robin_state_dir() -> Path | None:
+    current = Path.cwd().resolve()
+    for candidate in (current, *current.parents):
+        state_dir = candidate / "data" / "robin"
+        if (state_dir / "robin-config.json").exists():
+            return state_dir
+    return None
+
+
 def _xdg_config_root() -> Path:
     return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 
@@ -14,6 +23,15 @@ def _xdg_data_root() -> Path:
 
 
 def config_dir() -> Path:
+    explicit_config = os.environ.get("ROBIN_CONFIG_FILE")
+    if explicit_config:
+        return Path(explicit_config).expanduser().resolve().parent
+    workspace = os.environ.get("ROBIN_WORKSPACE")
+    if workspace:
+        return Path(workspace).expanduser().resolve() / "data" / "robin"
+    discovered = _cwd_robin_state_dir()
+    if discovered:
+        return discovered
     robin_home = os.environ.get("ROBIN_HOME")
     if robin_home:
         return Path(robin_home) / "config"
@@ -26,6 +44,15 @@ def config_dir() -> Path:
 
 
 def data_dir() -> Path:
+    explicit_index = os.environ.get("ROBIN_INDEX_FILE")
+    if explicit_index:
+        return Path(explicit_index).expanduser().resolve().parent
+    workspace = os.environ.get("ROBIN_WORKSPACE")
+    if workspace:
+        return Path(workspace).expanduser().resolve() / "data" / "robin"
+    discovered = _cwd_robin_state_dir()
+    if discovered:
+        return discovered
     robin_home = os.environ.get("ROBIN_HOME")
     if robin_home:
         return Path(robin_home) / "data"
@@ -38,10 +65,16 @@ def data_dir() -> Path:
 
 
 def config_path() -> Path:
+    explicit_config = os.environ.get("ROBIN_CONFIG_FILE")
+    if explicit_config:
+        return Path(explicit_config).expanduser().resolve()
     return config_dir() / "robin-config.json"
 
 
 def index_path() -> Path:
+    explicit_index = os.environ.get("ROBIN_INDEX_FILE")
+    if explicit_index:
+        return Path(explicit_index).expanduser().resolve()
     return data_dir() / "robin-review-index.json"
 
 
