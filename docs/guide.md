@@ -80,6 +80,8 @@ Create `/path/to/agent-workspace/data/robin/robin-config.json`:
 }
 ```
 
+Robin does not need a separate content-root path. Topic files and copied media live inside the state directory under `topics/` and `media/`.
+
 All config fields are optional. Robin defaults to:
 
 - `topics_dir`: `topics`
@@ -234,7 +236,7 @@ Optional path for advanced users:
 - `pip install -e .`
 - then use the installed `robin-add`, `robin-review`, `robin-reindex`, `robin-search`, and `robin-topics` entry points
 
-The repo-local `python3 scripts/*.py` commands work without `pip install -e .` because each wrapper adds Robin's `src/` directory to `sys.path` before importing `robin.*`.
+The repo-local `python3 scripts/*.py` commands work without `pip install -e .` or manual path setup. Internally, each wrapper adds Robin's `src/` directory to `sys.path` before importing `robin.*`.
 
 Examples:
 

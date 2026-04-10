@@ -1,21 +1,20 @@
 <p align="center">
   <img src="https://capsule-render.vercel.app/api?type=waving&height=250&color=gradient&text=Robin&section=header&desc=agent%20assisted%20digital%20commonplace%20book&descAlign=64&descAlignY=60&fontAlign=39&fontAlignY=41&reversal=false" width="100%"/>
-</p>
-<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/gniting/robin" alt="License"/></a>
   <a href="https://agentskills.io/"><img src="https://img.shields.io/badge/Skill-blue?label=AI" alt="ai skill" /></a>
 </p>
+
 ---
 
 # Robin
 
 Robin is a skill for your AI agent to help you keep a digital commonplace book. When you share something worth remembering, your agent can use Robin to save it in a well-organized Robin library and bring it back later when it is useful.
 
-> Dedicated to and named for [Robin Williams'](https://en.wikipedia.org/wiki/Robin_Williams) portrayal of Sean Maguire in *[Good Will Hunting](https://en.wikipedia.org/wiki/Good_Will_Hunting)* — a therapist who helped a brilliant but lost young man find his voice.
+> Dedicated to and named for [Robin Williams'](https://en.wikipedia.org/wiki/Robin_Williams) portrayal of Sean Maguire in [Good Will Hunting](https://en.wikipedia.org/wiki/Good_Will_Hunting) — a therapist who helped a brilliant but lost young man find his voice.
 
 ## What is a Commonplace Book?
 
-A commonplace book[[1](https://ryanholiday.net/how-and-why-to-keep-a-commonplace-book/)][[2](https://en.wikipedia.org/wiki/Commonplace_book)] is a personal collection of ideas, phrases, and passages worth keeping. Traditionally, it is a notebook where one gathers quotations, observations, arguments, anecdotes, and striking turns of phrase from what they read or hear, then organizes them so those pieces can be revisited and used later. 
+A [commonplace book](https://ryanholiday.net/how-and-why-to-keep-a-commonplace-book/) is a personal collection of ideas, phrases, and passages worth keeping. Traditionally, it is a notebook where one gathers quotations, observations, arguments, anecdotes, and striking turns of phrase from what they read or hear, then organizes them so those pieces can be revisited and used later. 
 One of its most practical benefits is that it sharpens vocabulary: by repeatedly noticing, recording, and returning to precise language, a reader begins to absorb better words, clearer sentence patterns, and more nuanced ways of expressing ideas. That expanded command of language tends to improve communication, because stronger vocabulary makes it easier to speak and write with accuracy, persuasion, and confidence. 
 Over time, a commonplace book becomes more than a record of reading. It turns into a tool for better thinking, better communication, and, by extension, better work, relationships, and decision-making.
 
@@ -64,7 +63,7 @@ Typical host examples:
 - Hermes: `~/.hermes/data/robin/`
 - OpenClaw: `~/.openclaw/workspace/data/robin/`
 
-By default, an agent can run Robin immediately through the repo-local Python scripts in `scripts/`. This works without `pip install -e .` because the wrapper scripts add Robin's `src/` directory to `sys.path` before importing the package. Installing the package to get the `robin-add`, `robin-review`, and related entry points is optional.
+By default, an agent can run Robin immediately through the repo-local Python scripts in `scripts/`. No `pip install -e .` or manual path setup is required. Installing the package to get the `robin-add`, `robin-review`, and related entry points is optional.
 
 If your agent supports file indexing, it should index Robin's topic files like any other Markdown content. Use your agent's normal search for broad recall across your whole workspace.
 

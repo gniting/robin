@@ -64,6 +64,8 @@ Example `robin-config.json`:
 }
 ```
 
+Robin does not need a separate content-root path. Topic files and copied media live inside the state directory under `topics/` and `media/`.
+
 All config fields are optional. Robin defaults to:
 
 - `topics_dir`: `topics`
@@ -107,7 +109,7 @@ Default runnable path:
   - `python3 scripts/search.py`
   - `python3 scripts/topics.py`
 
-This zero-install path works because the repo-local wrapper scripts add Robin's `src/` directory to `sys.path` before importing `robin.*`.
+No `pip install -e .` or manual path setup is required for this repo-local script path.
 
 Optional installed path:
 
