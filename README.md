@@ -3,7 +3,7 @@
 </p>
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/gniting/robin" alt="License"/></a>
-  <a href="https://agentskills.io/"><img src="https://img.shields.io/badge/Skill-Green?style=flat&label=AI" alt="ai skill" /></a>
+  <a href="https://agentskills.io/"><img src="https://img.shields.io/badge/Skill-blue?label=AI" alt="ai skill" /></a>
 </p>
 ---
 
