@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+LEGACY_SPLIT_LAYOUT_KEY = "vault" + "_path"
+
 
 def state_dir(explicit_state_dir: str | None = None) -> Path:
     value = explicit_state_dir or os.environ.get("ROBIN_STATE_DIR")
@@ -22,17 +24,34 @@ def index_path(explicit_state_dir: str | None = None) -> Path:
     return state_dir(explicit_state_dir) / "robin-review-index.json"
 
 
+def topics_path(config: dict, explicit_state_dir: str | None = None) -> Path:
+    return state_dir(explicit_state_dir) / config.get("topics_dir", "topics")
+
+
+def media_path(config: dict, explicit_state_dir: str | None = None) -> Path:
+    return state_dir(explicit_state_dir) / config.get("media_dir", "media")
+
+
 def load_config(explicit_state_dir: str | None = None) -> dict:
     path = config_path(explicit_state_dir)
     try:
         with path.open(encoding="utf-8") as f:
-            return json.load(f)
+            config = json.load(f)
     except FileNotFoundError as exc:
         raise SystemExit(
             f"Config not found at {path}. Create robin-config.json in the state directory first."
         ) from exc
     except json.JSONDecodeError as exc:
         raise SystemExit(f"Config at {path} is invalid JSON: {exc}") from exc
+
+    if LEGACY_SPLIT_LAYOUT_KEY in config:
+        raise SystemExit(
+            f"Config at {path} uses the old split-layout field for a separate content root. "
+            "Robin now stores topics and media inside the state directory. "
+            "Remove the legacy content-root field and keep only topics_dir/media_dir/review settings."
+        )
+
+    return config
 
 
 def empty_index() -> dict:

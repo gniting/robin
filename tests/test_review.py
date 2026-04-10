@@ -13,7 +13,7 @@ from scripts import review
 
 
 def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         f"{SEPARATOR}".join(
             [
@@ -72,7 +72,7 @@ def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
 
     candidate = pick_best_candidate(
         load_index(),
-        load_all_entries(json.loads((robin_env["config_dir"] / "robin-config.json").read_text(encoding="utf-8"))),
+        load_all_entries(json.loads((robin_env["state_dir"] / "robin-config.json").read_text(encoding="utf-8")), str(robin_env["state_dir"])),
         {"review_cooldown_days": 60},
     )
     assert candidate is not None
@@ -83,7 +83,7 @@ def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
 
 
 def test_review_surfaces_media_metadata(robin_env):
-    topic_file = robin_env["vault_path"] / "topics" / "poetry.md"
+    topic_file = robin_env["topics_dir"] / "poetry.md"
     topic_file.write_text(
         serialize_entry(
             build_media_entry(
@@ -121,7 +121,7 @@ def test_review_surfaces_media_metadata(robin_env):
 
     candidate = pick_best_candidate(
         load_index(),
-        load_all_entries(json.loads((robin_env["config_dir"] / "robin-config.json").read_text(encoding="utf-8"))),
+        load_all_entries(json.loads((robin_env["state_dir"] / "robin-config.json").read_text(encoding="utf-8")), str(robin_env["state_dir"])),
         {"review_cooldown_days": 60},
     )
     assert candidate is not None
@@ -133,7 +133,7 @@ def test_review_surfaces_media_metadata(robin_env):
 
 
 def test_review_text_output_includes_source(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "writing.md"
+    topic_file = robin_env["topics_dir"] / "writing.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -192,7 +192,7 @@ def test_rate_item_writes_parseable_timestamp(robin_env):
 
 
 def test_review_marks_item_surfaced_before_rating(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -234,7 +234,7 @@ def test_review_marks_item_surfaced_before_rating(robin_env, monkeypatch, capsys
 
 
 def test_rate_after_surface_does_not_increment_times_surfaced_twice(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -327,7 +327,7 @@ def test_review_json_rejects_non_numeric_rating(robin_env, monkeypatch, capsys):
 
 
 def test_review_json_rejects_invalid_index_timestamp(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -380,7 +380,7 @@ def test_review_json_skips_when_not_enough_items(robin_env, monkeypatch, capsys)
 
 
 def test_review_json_skips_when_no_eligible_items(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(

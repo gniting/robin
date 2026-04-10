@@ -5,10 +5,10 @@ import json
 from datetime import date
 from typing import NoReturn
 
-from robin.config import load_config, load_index, save_index
+from robin.config import load_config, load_index, save_index, topics_path
 from robin.index import ensure_entry_in_index, rebuild_index
 from robin.media import copy_image_to_vault, is_video_url
-from robin.parser import RobinEntryParseError, SEPARATOR, load_all_entries, load_topic_entries, topic_slug, topic_to_filename, topics_dir
+from robin.parser import RobinEntryParseError, SEPARATOR, load_all_entries, load_topic_entries, topic_slug, topic_to_filename
 from robin.review_logic import mark_surfaced, pick_best_candidate, rate_item
 from robin.search_logic import filter_by_tags, search_entries
 from robin.serializer import build_media_entry, build_text_entry, generate_entry_id, serialize_entry
@@ -27,7 +27,7 @@ def _emit_json(payload: dict) -> None:
 
 
 def _add_to_topic(config: dict, topic: str, entry_text: str) -> str:
-    base = topics_dir(config)
+    base = topics_path(config)
     base.mkdir(parents=True, exist_ok=True)
     filepath = base / topic_to_filename(topic)
 
@@ -117,7 +117,7 @@ def add_main(argv: list[str] | None = None) -> None:
             if args.media_url:
                 _error("Image entries do not accept --media-url.", as_json=args.json)
             try:
-                media_source = copy_image_to_vault(config, topic, entry_id, args.media_path)
+                media_source = copy_image_to_vault(config, args.state_dir, topic, entry_id, args.media_path)
             except ValueError as exc:
                 _error(str(exc), as_json=args.json)
             except OSError as exc:
@@ -250,7 +250,7 @@ def review_main(argv: list[str] | None = None) -> None:
         return
 
     try:
-        entries = load_all_entries(config)
+        entries = load_all_entries(config, args.state_dir)
     except RobinEntryParseError as exc:
         _error(str(exc), as_json=args.json)
     try:
@@ -331,7 +331,7 @@ def search_main(argv: list[str] | None = None) -> None:
     index = load_index(args.state_dir)
 
     if args.topic:
-        topic_path = topics_dir(config) / topic_to_filename(args.topic)
+        topic_path = topics_path(config, args.state_dir) / topic_to_filename(args.topic)
         if topic_path.exists():
             try:
                 entries = load_topic_entries(topic_path)
@@ -342,7 +342,7 @@ def search_main(argv: list[str] | None = None) -> None:
         heading = f"Topic '{args.topic}': {len(entries)} entries"
     else:
         try:
-            entries = load_all_entries(config)
+            entries = load_all_entries(config, args.state_dir)
         except RobinEntryParseError as exc:
             _error(str(exc), as_json=args.json)
 
@@ -419,7 +419,7 @@ def topics_main(argv: list[str] | None = None) -> None:
     config = load_config(args.state_dir)
     index = load_index(args.state_dir)
     try:
-        entries = load_all_entries(config)
+        entries = load_all_entries(config, args.state_dir)
     except RobinEntryParseError as exc:
         _error(str(exc), as_json=args.json)
 
@@ -465,7 +465,7 @@ def reindex_main(argv: list[str] | None = None) -> None:
     config = load_config(args.state_dir)
     old_index = load_index(args.state_dir)
     try:
-        entries = load_all_entries(config)
+        entries = load_all_entries(config, args.state_dir)
     except RobinEntryParseError as exc:
         _error(str(exc), as_json=args.json)
     new_index = rebuild_index(entries, old_index)

@@ -13,16 +13,20 @@ Robin is a digital commonplace book. The user gives content to the AI agent, and
 
 ## Storage Model
 
-- `vault_path` is the user content vault
-- `vault_path/topics/` stores topic-organized Markdown files
-- `vault_path/media/` stores copied image assets
 - the Robin state directory stores:
   - `robin-config.json`
   - optionally `robin-review-index.json`
+  - `topics/` for topic-organized Markdown files
+  - `media/` for copied image assets
 
 Recommended default state directory:
 
 - `<agent-workspace>/data/robin/`
+
+Typical host examples:
+
+- Hermes: `~/.hermes/data/robin/`
+- OpenClaw: `~/.openclaw/workspace/data/robin/`
 
 Robin does not guess host layout. The caller must provide the Robin state directory explicitly.
 
@@ -44,15 +48,15 @@ On setup, the agent should:
 1. choose a state directory, usually `<agent-workspace>/data/robin/`
 2. create the state directory if it does not exist
 3. create `robin-config.json` in that directory if it does not exist
-4. ensure the configured vault contains `topics/` and `media/`
+4. ensure the state directory contains `topics/` and `media/`
 5. optionally create `robin-review-index.json`; Robin will create an empty in-memory index if it is missing
-6. verify setup by running `python3 scripts/topics.py --state-dir <state-dir>`
+6. ask the user how often reviews should happen and when they should run
+7. verify setup by running `python3 scripts/topics.py --state-dir <state-dir>`
 
 Example `robin-config.json`:
 
 ```json
 {
-  "vault_path": "/path/to/your/vault",
   "topics_dir": "topics",
   "media_dir": "media",
   "min_items_before_review": 30,
@@ -60,7 +64,7 @@ Example `robin-config.json`:
 }
 ```
 
-`vault_path` is the only required config field. If omitted, Robin cannot run. All other config fields have defaults:
+All config fields are optional. Robin defaults to:
 
 - `topics_dir`: `topics`
 - `media_dir`: `media`
@@ -103,6 +107,8 @@ Default runnable path:
   - `python3 scripts/search.py`
   - `python3 scripts/topics.py`
 
+This zero-install path works because the repo-local wrapper scripts add Robin's `src/` directory to `sys.path` before importing `robin.*`.
+
 Optional installed path:
 
 - if the agent runs `pip install -e .`, Robin also exposes:
@@ -143,9 +149,9 @@ Robin is a storage and retrieval skill, not a code-editing skill.
 
 Normal Robin use may:
 
-- write to the configured vault
+- write to the configured state directory
 - update the review index
-- copy accepted image assets into the vault media directory
+- copy accepted image assets into the media directory
 
 Normal Robin use must not:
 
@@ -173,7 +179,7 @@ If the agent notices a Robin bug while using the skill, it should report the iss
 - `image`
   - requires: `topic`, local image file path, `description`, `creator`, `published_at`, `summary`
   - optional: `content`, `source`, `note`, `tags`
-  - behavior: Robin copies the image into `vault_path/media/`
+  - behavior: Robin copies the image into `media/` under the state directory
 - `video`
   - requires: `topic`, video URL, `description`, `creator`, `published_at`, `summary`
   - optional: `content`, `source`, `note`, `tags`
@@ -197,6 +203,8 @@ When the add operation fails, the agent should pass the returned error back to t
 ## Review Mode
 
 Review is host-triggered. Robin itself does not run a scheduler.
+
+During setup, the agent should ask the user what review cadence they want. If the host supports scheduling, the agent should usually configure a daily or weekly review trigger at the user's preferred time. Otherwise, the agent should expose review as an on-demand action.
 
 Review behavior:
 

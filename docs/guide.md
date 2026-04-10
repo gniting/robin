@@ -2,9 +2,11 @@
 
 This guide is for advanced users who want manual control over Robin: state-directory setup, config files, CLI usage, file layout, and troubleshooting.
 
+Important: Robin requires Python 3.11 or newer.
+
 ## Storage Model
 
-Robin separates user content from Robin state.
+Robin keeps both saved content and review state inside the state directory.
 
 Recommended layout:
 
@@ -14,20 +16,22 @@ agent-workspace/
     robin/
       robin-config.json
       robin-review-index.json
-
-vault_path/
-  media/
-    poetry/
-      20260409-a1f3c9.png
-  topics/
-    reasoning.md
-    poetry.md
-    quotes.md
+      media/
+        poetry/
+          20260409-a1f3c9.png
+      topics/
+        reasoning.md
+        poetry.md
+        quotes.md
 ```
 
-- The vault stores user-facing content.
-- The Robin state directory stores config and review metadata.
+- The Robin state directory stores config, review metadata, topic files, and copied images.
 - Robin does not guess where its state lives.
+
+Typical host examples:
+
+- Hermes: `~/.hermes/data/robin/`
+- OpenClaw: `~/.openclaw/workspace/data/robin/`
 
 ## Runtime Contract
 
@@ -61,15 +65,14 @@ Create a state directory:
 
 ```bash
 mkdir -p /path/to/agent-workspace/data/robin
-mkdir -p /path/to/your/vault/topics
-mkdir -p /path/to/your/vault/media
+mkdir -p /path/to/agent-workspace/data/robin/topics
+mkdir -p /path/to/agent-workspace/data/robin/media
 ```
 
 Create `/path/to/agent-workspace/data/robin/robin-config.json`:
 
 ```json
 {
-  "vault_path": "/path/to/your/vault",
   "topics_dir": "topics",
   "media_dir": "media",
   "min_items_before_review": 30,
@@ -77,7 +80,7 @@ Create `/path/to/agent-workspace/data/robin/robin-config.json`:
 }
 ```
 
-`vault_path` is the only required config field. The remaining fields are optional and default to:
+All config fields are optional. Robin defaults to:
 
 - `topics_dir`: `topics`
 - `media_dir`: `media`
@@ -166,7 +169,7 @@ Field meanings:
 
 Robin accepts media with these rules:
 
-- local image files: accepted and copied into the vault media directory
+- local image files: accepted and copied into the media directory
 - remote image URLs: not supported directly by Robin's CLI
 - video URLs: accepted and stored by reference
 - uploaded or local video files: rejected
@@ -231,6 +234,8 @@ Optional path for advanced users:
 - `pip install -e .`
 - then use the installed `robin-add`, `robin-review`, `robin-reindex`, `robin-search`, and `robin-topics` entry points
 
+The repo-local `python3 scripts/*.py` commands work without `pip install -e .` because each wrapper adds Robin's `src/` directory to `sys.path` before importing `robin.*`.
+
 Examples:
 
 ```bash
@@ -277,6 +282,8 @@ Review behavior:
 
 If `--rate` is called directly on an item that was not surfaced first, Robin still sets `last_surfaced`, increments `times_surfaced`, and keeps `_awaiting_rating` as `false`.
 
+Setup guidance for hosts: ask the user how often reviews should happen and when they should run. If the host supports scheduling, a daily or weekly trigger is the normal default. Otherwise, keep review available as an on-demand command.
+
 Example index shape:
 
 ```json
@@ -306,4 +313,4 @@ Example index shape:
 - Media entry rejected:
   Ensure the caller provided `description`, `creator`, `published_at`, and `summary`.
 - Image copy failed:
-  Confirm the local image path exists and the vault `media/` directory is writable.
+  Confirm the local image path exists and the `media/` directory under the state dir is writable.

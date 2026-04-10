@@ -5,13 +5,10 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 
+from robin.config import media_path, state_dir
 from robin.parser import topic_slug
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".svg"}
-
-
-def media_dir(config: dict) -> Path:
-    return Path(config["vault_path"]) / config.get("media_dir", "media")
 
 
 def is_video_url(value: str) -> bool:
@@ -32,10 +29,16 @@ def validate_image_path(value: str) -> Path:
     return path
 
 
-def copy_image_to_vault(config: dict, topic: str, entry_id: str, image_path: str) -> str:
+def copy_image_to_vault(
+    config: dict,
+    explicit_state_dir: str | None,
+    topic: str,
+    entry_id: str,
+    image_path: str,
+) -> str:
     source = validate_image_path(image_path)
-    destination_dir = media_dir(config) / topic_slug(topic)
+    destination_dir = media_path(config, explicit_state_dir) / topic_slug(topic)
     destination_dir.mkdir(parents=True, exist_ok=True)
     destination = destination_dir / f"{entry_id}{source.suffix.lower()}"
     shutil.copy2(source, destination)
-    return str(destination.relative_to(Path(config["vault_path"])))
+    return str(destination.relative_to(state_dir(explicit_state_dir)))

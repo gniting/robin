@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from robin.config import config_path, index_path, load_config, load_index, state_dir
+from robin.config import LEGACY_SPLIT_LAYOUT_KEY, config_path, index_path, load_config, load_index, state_dir
 from robin.cli import search_main
 
 
@@ -29,6 +29,19 @@ def test_load_config_invalid_json_exits_cleanly(robin_env):
         load_config()
 
 
+def test_load_config_accepts_minimal_state_dir_config(robin_env):
+    config_path().write_text("{}", encoding="utf-8")
+
+    assert load_config() == {}
+
+
+def test_load_config_rejects_legacy_split_layout_field(robin_env):
+    config_path().write_text(json.dumps({LEGACY_SPLIT_LAYOUT_KEY: "/tmp/old-root"}), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="old split-layout field for a separate content root"):
+        load_config()
+
+
 def test_load_index_invalid_json_exits_cleanly(robin_env):
     index_path().write_text("{invalid json", encoding="utf-8")
 
@@ -49,14 +62,12 @@ def test_cli_state_dir_overrides_env(tmp_path, monkeypatch, capsys):
     cli_state_dir.mkdir(parents=True)
 
     env_config = {
-        "vault_path": str(tmp_path / "env-vault"),
         "topics_dir": "topics",
         "media_dir": "media",
         "min_items_before_review": 1,
         "review_cooldown_days": 60,
     }
     cli_config = {
-        "vault_path": str(tmp_path / "cli-vault"),
         "topics_dir": "topics",
         "media_dir": "media",
         "min_items_before_review": 1,
@@ -64,12 +75,11 @@ def test_cli_state_dir_overrides_env(tmp_path, monkeypatch, capsys):
     }
 
     for state_dir, config in ((env_state_dir, env_config), (cli_state_dir, cli_config)):
-        vault = tmp_path / ("env-vault" if state_dir == env_state_dir else "cli-vault")
-        (vault / "topics").mkdir(parents=True)
+        (state_dir / "topics").mkdir(parents=True)
         (state_dir / "robin-config.json").write_text(json.dumps(config), encoding="utf-8")
         (state_dir / "robin-review-index.json").write_text(json.dumps({"items": {}}), encoding="utf-8")
 
-    (tmp_path / "cli-vault" / "topics" / "focus.md").write_text(
+    (cli_state_dir / "topics" / "focus.md").write_text(
         "id: 20260409-a1f3c9c9\ndate_added: 2026-04-09\ndescription: test\n\nCLI state entry\n",
         encoding="utf-8",
     )

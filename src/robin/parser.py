@@ -4,6 +4,7 @@ import hashlib
 import re
 from pathlib import Path
 
+from robin.config import topics_path
 from robin.models import Entry
 
 SEPARATOR = "\n***\n"
@@ -24,10 +25,6 @@ def topic_to_filename(topic: str) -> str:
 
 def topic_slug(topic: str) -> str:
     return topic_to_filename(topic).removesuffix(".md")
-
-
-def topics_dir(config: dict) -> Path:
-    return Path(config["vault_path"]) / config.get("topics_dir", "topics")
 
 
 def parse_tags(raw_value: str) -> list[str]:
@@ -119,8 +116,8 @@ def load_topic_entries(filepath: Path) -> list[Entry]:
     return entries
 
 
-def load_all_entries(config: dict) -> list[Entry]:
-    base = topics_dir(config)
+def load_all_entries(config: dict, explicit_state_dir: str | None = None) -> list[Entry]:
+    base = topics_path(config, explicit_state_dir)
     if not base.exists():
         return []
 

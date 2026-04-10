@@ -29,7 +29,7 @@ def test_add_entry_writes_markdown_and_index(robin_env, monkeypatch, capsys):
     add_entry.main()
     output = json.loads(capsys.readouterr().out)
 
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     content = topic_file.read_text(encoding="utf-8")
     assert f"id: {output['id']}" in content
     assert "description: Advice on keeping prose direct and readable. A useful writing principle to revisit." in content
@@ -70,7 +70,7 @@ def test_add_image_entry_copies_media(robin_env, monkeypatch, capsys):
 
     add_entry.main()
     output = json.loads(capsys.readouterr().out)
-    copied = robin_env["vault_path"] / output["media_source"]
+    copied = robin_env["state_dir"] / output["media_source"]
 
     assert output["entry_type"] == "image"
     assert copied.exists()

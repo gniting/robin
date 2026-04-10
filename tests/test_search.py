@@ -9,7 +9,7 @@ from scripts import search, topics
 
 
 def test_search_and_topics_json(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "writing.md"
+    topic_file = robin_env["topics_dir"] / "writing.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -60,7 +60,7 @@ def test_search_and_topics_json(robin_env, monkeypatch, capsys):
 
 
 def test_search_matches_media_metadata(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "talks.md"
+    topic_file = robin_env["topics_dir"] / "talks.md"
     topic_file.write_text(
         serialize_entry(
             build_media_entry(
@@ -92,7 +92,7 @@ def test_search_matches_media_metadata(robin_env, monkeypatch, capsys):
 
 
 def test_search_topic_filter_normalizes_user_input(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -119,7 +119,7 @@ def test_search_topic_filter_normalizes_user_input(robin_env, monkeypatch, capsy
 
 
 def test_search_topic_filter_only_reads_target_topic_file(robin_env, monkeypatch, capsys):
-    good_topic = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    good_topic = robin_env["topics_dir"] / "ai-reasoning.md"
     good_topic.write_text(
         serialize_entry(
             build_text_entry(
@@ -136,7 +136,7 @@ def test_search_topic_filter_only_reads_target_topic_file(robin_env, monkeypatch
         + "\n",
         encoding="utf-8",
     )
-    broken_topic = robin_env["vault_path"] / "topics" / "broken.md"
+    broken_topic = robin_env["topics_dir"] / "broken.md"
     broken_topic.write_text("date_added 2026-04-08\n\nBroken entry\n", encoding="utf-8")
 
     monkeypatch.setattr("sys.argv", ["search.py", "--topic", "AI Reasoning", "--json"])
@@ -148,7 +148,7 @@ def test_search_topic_filter_only_reads_target_topic_file(robin_env, monkeypatch
 
 
 def test_search_matches_tags_in_free_text_query(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "writing.md"
+    topic_file = robin_env["topics_dir"] / "writing.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -189,7 +189,7 @@ def test_search_rejects_empty_tags_filter(robin_env, monkeypatch, capsys):
 
 
 def test_search_reports_malformed_entry_as_json_error(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "broken.md"
+    topic_file = robin_env["topics_dir"] / "broken.md"
     topic_file.write_text("date_added 2026-04-08\n\nBroken entry\n", encoding="utf-8")
 
     monkeypatch.setattr("sys.argv", ["search.py", "--json"])
@@ -206,7 +206,7 @@ def test_search_reports_malformed_entry_as_json_error(robin_env, monkeypatch, ca
 
 
 def test_search_tags_heading_omits_empty_elements(robin_env, monkeypatch, capsys):
-    topic_file = robin_env["vault_path"] / "topics" / "writing.md"
+    topic_file = robin_env["topics_dir"] / "writing.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(

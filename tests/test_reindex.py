@@ -6,7 +6,7 @@ from robin.serializer import build_text_entry, serialize_entry
 
 
 def test_reindex_preserves_legacy_review_state(robin_env):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         SEPARATOR.join(
             [
@@ -55,10 +55,10 @@ def test_reindex_preserves_legacy_review_state(robin_env):
         },
     }
 
-    rebuilt = rebuild_index(load_all_entries({
-        "vault_path": str(robin_env["vault_path"]),
-        "topics_dir": "topics",
-    }), old_index)
+    rebuilt = rebuild_index(
+        load_all_entries({"topics_dir": "topics"}, str(robin_env["state_dir"])),
+        old_index,
+    )
 
     assert rebuilt["items"]["20260408-a1f3c9"]["rating"] == 2
     assert rebuilt["items"]["20260408-a1f3c9"]["times_surfaced"] == 4
@@ -66,7 +66,7 @@ def test_reindex_preserves_legacy_review_state(robin_env):
 
 
 def test_reindex_preserves_awaiting_rating_state(robin_env):
-    topic_file = robin_env["vault_path"] / "topics" / "ai-reasoning.md"
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         serialize_entry(
             build_text_entry(
@@ -99,12 +99,7 @@ def test_reindex_preserves_awaiting_rating_state(robin_env):
     }
 
     rebuilt = rebuild_index(
-        load_all_entries(
-            {
-                "vault_path": str(robin_env["vault_path"]),
-                "topics_dir": "topics",
-            }
-        ),
+        load_all_entries({"topics_dir": "topics"}, str(robin_env["state_dir"])),
         old_index,
     )
 

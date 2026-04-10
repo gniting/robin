@@ -9,7 +9,7 @@
 
 # Robin
 
-Robin is a skill for your AI agent to help you keep a digital commonplace book. When you share something worth remembering, your agent can use Robin to save it in a well-organized vault and bring it back later when it is useful.
+Robin is a skill for your AI agent to help you keep a digital commonplace book. When you share something worth remembering, your agent can use Robin to save it in a well-organized Robin library and bring it back later when it is useful.
 
 > Dedicated to and named for [Robin Williams'](https://en.wikipedia.org/wiki/Robin_Williams) portrayal of Sean Maguire in *[Good Will Hunting](https://en.wikipedia.org/wiki/Good_Will_Hunting)* — a therapist who helped a brilliant but lost young man find his voice.
 
@@ -22,11 +22,11 @@ Over time, a commonplace book becomes more than a record of reading. It turns in
 ## Features
 
 - Filing — Send Robin any content and it determines the right topic, files it away, and confirms
-- Media-aware filing — Local images are copied into the vault, video URLs are stored but uploaded/local video files are rejected
+- Media-aware filing — Local images are copied into Robin, video URLs are stored but uploaded/local video files are rejected
 - Topic management — Creates new topics on demand, suggests topic names, resolves conflicts
 - Spaced repetition review — Surfaces items on a configurable schedule so you reinforce learning
 - Rating — Rate surfaced items 1–5; Robin tracks what you care about most over time
-- Searchable vault — All entries live in plain markdown topic files; open in Obsidian, Logseq, or any editor
+- Searchable library — All entries live in plain markdown topic files; open in Obsidian, Logseq, or any editor
 - Agent-agnostic — Works with any agent that implements a skills interface
 
 ## Before You Start
@@ -35,7 +35,9 @@ You need:
 
 - an AI agent that supports local skills
 - Python 3.11+
-- a local folder where you want your Robin vault to live
+- a local folder in your agent workspace where Robin can store its files
+
+Important: Robin requires Python 3.11 or newer. Older Python versions are not supported.
 
 ## Install Robin With Your Agent
 
@@ -47,8 +49,8 @@ Example prompt:
 
 Your agent should handle Robin's setup and configuration automatically. As part of setup, your agent should create:
 
-- `<your vault>/topics/` for topic files
-- `<your vault>/media/` for copied images
+- `<agent workspace>/data/robin/topics/` for topic files
+- `<agent workspace>/data/robin/media/` for copied images
 - `<agent workspace>/data/robin/robin-config.json` for Robin settings
 - optionally `<agent workspace>/data/robin/robin-review-index.json` for review state
 
@@ -57,7 +59,12 @@ Your agent should pass Robin one of these every time it runs a Robin command:
 - `--state-dir <agent-workspace>/data/robin`
 - `ROBIN_STATE_DIR=<agent-workspace>/data/robin`
 
-By default, an agent can run Robin immediately through the repo-local Python scripts in `scripts/`. Installing the package to get the `robin-add`, `robin-review`, and related entry points is optional.
+Typical host examples:
+
+- Hermes: `~/.hermes/data/robin/`
+- OpenClaw: `~/.openclaw/workspace/data/robin/`
+
+By default, an agent can run Robin immediately through the repo-local Python scripts in `scripts/`. This works without `pip install -e .` because the wrapper scripts add Robin's `src/` directory to `sys.path` before importing the package. Installing the package to get the `robin-add`, `robin-review`, and related entry points is optional.
 
 If your agent supports file indexing, it should index Robin's topic files like any other Markdown content. Use your agent's normal search for broad recall across your whole workspace.
 
@@ -73,9 +80,9 @@ Example prompts:
 
 Robin's own search is useful when your agent needs Robin-specific structure such as topic filters, tags, stable ids, ratings, and structured JSON output.
 
-## Resurfacing items from your vault for reinforcement learning
+## Resurfacing items for reinforcement learning
 
-Ask your agent to schedule Robin review at your preferred cadence. Robin does not run a scheduler itself; your agent or host environment should trigger review and present the surfaced item back to you.
+As part of setup, your agent should ask you how often reviews should happen and when you want them to run. Robin does not run a scheduler itself; your agent or host environment should trigger review on that schedule, or keep review available on demand if you prefer not to automate it.
 
 ## Need More Detail?
 
@@ -84,7 +91,7 @@ See [docs/guide.md](docs/guide.md) for the advanced guide, including:
 - manual setup with `--state-dir` or `ROBIN_STATE_DIR`
 - the difference between repo-local scripts and optional installed entry points
 - file format and media rules
-- vault layout and runtime behavior
+- storage layout and runtime behavior
 - CLI usage and manual workflows
 - review/index behavior
 - host-specific examples
