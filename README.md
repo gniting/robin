@@ -44,7 +44,9 @@ The easiest path is to ask your agent to install Robin for you and choose a Robi
 
 Example prompt:
 
-- `Install the Robin skill from https://github.com/gniting/robin`
+```
+Install the Robin skill from https://github.com/gniting/robin
+```
 
 Your agent should handle Robin's setup and configuration automatically. As part of setup, your agent should create:
 
