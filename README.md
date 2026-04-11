@@ -42,11 +42,29 @@ Important: Robin requires Python 3.11 or newer. Older Python versions are not su
 
 The easiest path is to ask your agent to install Robin for you and choose a Robin state directory for this skill.
 
-Example prompt:
+### Option 1 - Ask your agent directly
+
+Just copy-paste this prompt to your agent:
 
 ```
 Install the Robin skill from https://github.com/gniting/robin
 ```
+
+### Option 2 - Via Skills.sh
+
+If your agent platform supports `npx skills`, run:
+
+```
+npx skills add https://github.com/gniting/robin
+```
+
+then prompt your agent to set Robin up:
+
+```
+Set up the Robin skill
+```
+
+### Configuration
 
 Your agent should handle Robin's setup and configuration automatically. As part of setup, your agent should create:
 
