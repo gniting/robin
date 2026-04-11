@@ -54,6 +54,27 @@ def test_parse_media_entry_round_trip():
     assert parsed.summary.startswith("An excerpt")
 
 
+def test_parse_text_entry_with_attached_image_round_trip():
+    entry = build_text_entry(
+        topic="Wisdom",
+        content="Filed this screenshot to wisdom.",
+        description="A text note with a local screenshot attached for later context.",
+        source="",
+        note="",
+        tags=["screenshot"],
+        date_added="2026-04-08",
+        media_source="media/wisdom/20260408-a1f3c9.png",
+        entry_id="20260408-a1f3c9",
+    )
+
+    parsed = parse_entry(serialize_entry(entry), "wisdom")
+
+    assert parsed.entry_type == "text"
+    assert parsed.media_kind == ""
+    assert parsed.media_source == "media/wisdom/20260408-a1f3c9.png"
+    assert parsed.body == "Filed this screenshot to wisdom."
+
+
 def test_parse_entry_generates_legacy_fallback_id():
     parsed = parse_entry(
         "date_added: 2026-04-08\nsource: \ndescription: Legacy entry without explicit id.\ntags: [notes]\n\nSomething worth keeping.",

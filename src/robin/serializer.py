@@ -20,6 +20,7 @@ def build_text_entry(
     note: str | None,
     tags: list[str],
     date_added: str,
+    media_source: str | None = None,
     entry_id: str | None = None,
 ) -> Entry:
     body_parts: list[str] = []
@@ -33,6 +34,7 @@ def build_text_entry(
         topic=topic_slug(topic),
         date_added=date_added,
         entry_type="text",
+        media_source=(media_source or "").strip(),
         source=(source or "").strip(),
         description=description.strip(),
         tags=tags,

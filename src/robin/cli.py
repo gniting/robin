@@ -67,7 +67,7 @@ def add_main(argv: list[str] | None = None) -> None:
     parser.add_argument("--content", default="", help="Content to file")
     parser.add_argument("--description", required=True, help="2-3 sentence context to store with the entry")
     parser.add_argument("--source", help="Source URL")
-    parser.add_argument("--media-path", help="Local image file path for image entries")
+    parser.add_argument("--media-path", help="Local image file path for image entries or text entry attachments")
     parser.add_argument("--media-url", help="Remote video URL for video entries")
     parser.add_argument("--creator", help="Required for media entries")
     parser.add_argument("--published-at", help="Required for media entries")
@@ -88,14 +88,27 @@ def add_main(argv: list[str] | None = None) -> None:
     if entry_type == "text":
         if not args.content.strip():
             _error("Text entries require --content.", as_json=args.json)
+        if args.media_url:
+            _error("Text entries do not accept --media-url. Attach local images with --media-path.", as_json=args.json)
+        entry_id = generate_entry_id(date_added) if args.media_path else None
+        media_source = ""
+        if args.media_path and entry_id:
+            try:
+                media_source = copy_image_to_vault(config, args.state_dir, topic, entry_id, args.media_path)
+            except ValueError as exc:
+                _error(str(exc), as_json=args.json)
+            except OSError as exc:
+                _error(f"Failed to copy image into vault: {exc}", as_json=args.json)
         entry = build_text_entry(
             topic=topic,
             content=args.content.strip(),
             description=args.description.strip(),
             source=args.source.strip() if args.source else None,
+            media_source=media_source,
             note=args.note.strip() if args.note else None,
             tags=tags,
             date_added=date_added,
+            entry_id=entry_id,
         )
     else:
         missing = [

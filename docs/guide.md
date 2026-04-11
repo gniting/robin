@@ -174,8 +174,8 @@ Field meanings:
 - `id`: stable entry identifier
 - `date_added`: entry date
 - `entry_type`: `text`, `image`, or `video`
-- `media_kind`: same as `entry_type` for media entries; omitted for text entries
-- `media_source`: copied relative path for images or external URL for videos
+- `media_kind`: same as `entry_type` for media entries; omitted for text entries, including text entries with image attachments
+- `media_source`: copied relative path for local images or external URL for videos; may be present on text entries when `--media-path` is used
 - `source`: original source URL when available
 - `description`: required context for every entry
 - `creator`, `published_at`, `summary`: required for media entries
@@ -208,6 +208,7 @@ Field semantics:
 Robin accepts media with these rules:
 
 - local image files: accepted and copied into `media/<topic-slug>/`; Robin creates the topic subdirectory automatically
+- text entries may attach a local image with `--media-path`; Robin keeps `entry_type` as `text`, sets `media_source`, and does not require media metadata
 - remote image URLs: not supported directly by Robin's CLI
 - video URLs: accepted and stored by reference
 - uploaded or local video files: rejected
@@ -303,6 +304,7 @@ python3 scripts/selftest.py --state-dir /path/to/data/robin
 python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "reasoning" --content "The most important thing is to decide what you are optimizing for." --description "A short Paul Graham line about choosing the objective before optimizing. Useful when reviewing tradeoff-heavy decisions." --json
 python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "writing" --content "Write as if speaking to a smart friend." --description "A reminder to keep prose conversational and clear." --source "https://example.com/article" --note "Pair this with other writing advice." --json
 python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "reasoning" --content "The map is not the territory." --description "A reminder that abstractions are not reality itself." --tags "thinking,quotes" --json
+python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "wisdom" --content "Filed this screenshot to wisdom." --description "A text note with a local screenshot attached for later context." --media-path ~/Downloads/screenshot.png --json
 python3 scripts/add_entry.py --state-dir /path/to/data/robin --entry-type image --topic "poetry" --media-path ~/Downloads/poem.png --description "A photographed poem excerpt worth revisiting." --creator "Mary Oliver" --published-at "1986" --summary "An excerpt about attention and observation." --json
 python3 scripts/add_entry.py --state-dir /path/to/data/robin --entry-type video --topic "talks" --media-url "https://www.youtube.com/watch?v=abc123" --description "A talk to revisit for its framing and examples." --creator "Speaker Name" --published-at "2025-01-01" --summary "A concise summary of the talk." --json
 python3 scripts/reindex.py --state-dir /path/to/data/robin

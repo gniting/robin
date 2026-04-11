@@ -152,7 +152,7 @@ When using Robin, the agent is responsible for:
 - generating `creator`, `published_at`, and `summary` for every media entry
 - refusing to store media if the required metadata is missing
 - passing only supported media forms to Robin:
-  - local image file paths for images
+  - local image file paths for image entries or text entry attachments
   - `http(s)` URLs for videos
   - never uploaded or local video files
 - passing `--state-dir` or `ROBIN_STATE_DIR` on every Robin invocation
@@ -193,7 +193,7 @@ If the agent notices a Robin bug while using the skill, it should report the iss
 5. If two existing topics are still both plausible, the agent asks the user to choose.
 6. If no existing topic fits, the agent suggests a new reusable topic name and files the item there.
 7. Before calling `add_entry.py`, the agent checks for duplicates using the Content Policy below.
-8. For media items, the agent must also supply `creator`, `published_at`, and `summary`. If any are missing, Robin rejects the entry.
+8. For explicit `image` or `video` entries, the agent must also supply `creator`, `published_at`, and `summary`. If any are missing, Robin rejects the entry.
 
 ### Topic Strategy
 
@@ -220,7 +220,9 @@ If the agent notices a Robin bug while using the skill, it should report the iss
 
 - `text`
   - requires: `topic`, `content`, `description`
-  - optional: `source`, `note`, `tags`
+  - optional: local image attachment with `--media-path`, `source`, `note`, `tags`
+  - behavior: when `--media-path` is provided, Robin copies the image into `media/<topic-slug>/`, sets `media_source`, keeps `entry_type` as `text`, and does not require `creator`, `published_at`, or `summary`
+  - rejection: text entries do not accept `--media-url`
 - `image`
   - requires: `topic`, local image file path, `description`, `creator`, `published_at`, `summary`
   - optional: `content`, `source`, `note`, `tags`
@@ -332,6 +334,7 @@ The examples below use the repo-local `python3 scripts/*.py` path. The installed
 - `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "writing" --content "..." --description "..." --note "Useful for later review."`
 - `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "writing" --content "Write as if speaking to a smart friend." --description "A reminder to keep prose conversational and clear." --source "https://example.com/article" --json`
 - `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "reasoning" --content "The map is not the territory." --description "A reminder that abstractions are not reality itself." --tags "thinking,quotes"`
+- `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "wisdom" --content "Filed this screenshot to wisdom." --description "A text note with a local screenshot attached for later context." --media-path ~/Downloads/screenshot.png --json`
 - `python3 scripts/review.py --state-dir /path/to/data/robin`
 - `python3 scripts/review.py --state-dir /path/to/data/robin --json`
 - `python3 scripts/review.py --state-dir /path/to/data/robin --status --json`
@@ -455,3 +458,28 @@ Review settings such as `min_items_before_review` and `review_cooldown_days` liv
 - A blank line is required after frontmatter.
 - Keep `id` stable when manually editing entries.
 - If `robin-config.json` contains invalid JSON, Robin exits with an error; recreate it as `{}` or with the supported config fields.
+- Robin's frontmatter parser breaks on body lines starting with a digit followed by `.` (e.g. `1.`, `2.`). These are incorrectly parsed as invalid frontmatter keys, corrupting the file. Always ensure body content that starts with numbered lists has a blank line separating it from the frontmatter block, or rewrite such entries so the body doesn't begin with a digit-dot pattern.
+- Telegram: Sending GIFs via `MEDIA:/path/file.gif` converts them to static photos. To preserve animation, GIFs must be sent as documents, not photos. The gateway may require a document wrapper or alternate approach for animated GIF delivery.
+
+### Frontmatter Pitfalls
+
+- **Body content starting with a numbered list item** — lines like `1. Some text here` in the body will be misidentified as invalid frontmatter. This corrupts the entire topic file and causes `search.py` to fail with a parse error for ALL topic files, not just the affected one. Always put a blank line before any numbered list in body text, and ensure the frontmatter closes cleanly before body content begins.
+- **Tags array with malformed values** — if tags contain spaces without quotes (e.g. `tags: [tag one, tag two]`), parsing may fail. Always use hyphenated or camelCase tag names, never bare words with spaces.
+
+### Image Filing from Telegram / Chat Platforms
+
+When a user sends an image to file to Robin via a messaging platform:
+
+1. Telegram images arrive in `~/.hermes/image_cache/` with a name like `img_<hash>.jpg`
+2. For an image-first entry, use `--entry-type image` and pass `--media-path`; this requires `creator`, `published_at`, and `summary`
+3. For a text note with an attached image, keep `--entry-type text` and pass `--media-path`; Robin copies the image and sets `media_source` without requiring media metadata
+4. After `add_entry.py` returns, verify `media_source` is populated in the JSON output
+
+**Important**: Saying "Filed!" after running `add_entry.py` is premature if an expected image attachment is missing. Always check the returned JSON `media_source` field.
+
+### Bulk Import Workflow
+
+When filing many items at once (e.g. a batch of quotes):
+1. Run a single deduplication search with a distinctive phrase before filing — do NOT check each item individually.
+2. Batch all `add_entry.py` calls together in a single terminal block — this is faster and the deduplication check already ran.
+3. If a topic file has a frontmatter parse error, `search.py` fails globally and deduplication checks become impossible until the file is fixed. Always inspect `public-speaking.md` and similar files with list-based body content before bulk imports.

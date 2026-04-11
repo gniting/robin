@@ -104,6 +104,72 @@ def test_add_image_entry_copies_media(robin_env, monkeypatch, capsys):
     assert copied.read_bytes() == b"fake-image"
 
 
+def test_add_text_entry_can_attach_local_image(robin_env, monkeypatch, capsys):
+    image_path = robin_env["tmp_path"] / "screenshot.png"
+    image_path.write_bytes(b"fake-screenshot")
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Wisdom",
+            "--content",
+            "Filed this screenshot to wisdom.",
+            "--description",
+            "A text note with a local screenshot attached for later context.",
+            "--media-path",
+            str(image_path),
+            "--json",
+        ],
+    )
+
+    add_entry.main()
+    output = json.loads(capsys.readouterr().out)
+    copied = robin_env["state_dir"] / output["media_source"]
+    topic_file = robin_env["topics_dir"] / "wisdom.md"
+    content = topic_file.read_text(encoding="utf-8")
+
+    assert output["entry_type"] == "text"
+    assert output["media_source"].startswith("media/wisdom/")
+    assert copied.exists()
+    assert copied.read_bytes() == b"fake-screenshot"
+    assert f"id: {output['id']}" in content
+    assert f"media_source: {output['media_source']}" in content
+    assert "media_kind:" not in content
+    assert "creator:" not in content
+    assert "published_at:" not in content
+    assert "summary:" not in content
+
+
+def test_add_text_entry_rejects_media_url(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Wisdom",
+            "--content",
+            "This should not attach a remote URL.",
+            "--description",
+            "A text note attempting to attach a media URL.",
+            "--media-url",
+            "https://example.com/image.png",
+            "--json",
+        ],
+    )
+
+    try:
+        add_entry.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected SystemExit for text media URL rejection")
+
+    output = json.loads(capsys.readouterr().out)
+    assert "Text entries do not accept --media-url" in output["error"]
+
+
 def test_add_video_url_entry_accepts_reference(robin_env, monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.argv",
