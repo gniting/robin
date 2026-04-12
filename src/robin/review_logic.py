@@ -46,14 +46,14 @@ def pick_best_candidate(index: dict, entries: list[Entry], config: dict) -> tupl
     return item, entry
 
 
-def mark_surfaced(index: dict, entry_id: str) -> dict:
+def mark_surfaced(index: dict, entry_id: str, *, awaiting_rating: bool = False) -> dict:
     if entry_id not in index.get("items", {}):
         raise KeyError(entry_id)
 
     item = index["items"][entry_id]
     item["last_surfaced"] = now_iso()
     item["times_surfaced"] = item.get("times_surfaced", 0) + 1
-    item["_awaiting_rating"] = True
+    item["_awaiting_rating"] = awaiting_rating
     return item
 
 

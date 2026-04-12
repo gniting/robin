@@ -174,7 +174,7 @@ def _check_search_finds_entry(state_dir: Path, entry_id: str) -> None:
 
 
 def _check_review_and_rate(state_dir: Path) -> None:
-    payload = _run_json([_script("review.py"), "--state-dir", str(state_dir), "--json"])
+    payload = _run_json([_script("review.py"), "--state-dir", str(state_dir), "--active-review", "--json"])
     if not isinstance(payload, dict):
         raise SelftestFailure("review.py --json did not return an object")
     _require_keys(

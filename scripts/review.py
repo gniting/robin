@@ -3,7 +3,8 @@
 review.py — Robin review script
 
 Usage:
-  python3 review.py --state-dir /path/to/data/robin                    # Pick and print best candidate
+  python3 review.py --state-dir /path/to/data/robin                    # Scheduled recall; no pending rating
+  python3 review.py --state-dir /path/to/data/robin --active-review    # Active review; await a rating
   python3 review.py --state-dir /path/to/data/robin --rate ID 5        # Rate an item (overwrites previous)
   python3 review.py --state-dir /path/to/data/robin --status           # Show review stats without surfacing
 

@@ -217,6 +217,7 @@ def review_main(argv: list[str] | None = None) -> None:
     _add_state_dir_arg(parser)
     parser.add_argument("--status", action="store_true", help="Show review status")
     parser.add_argument("--rate", nargs=2, metavar=("ID", "RATING"), help="Rate an item by stable entry id")
+    parser.add_argument("--active-review", action="store_true", help="Mark surfaced item as awaiting a rating")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args(argv)
 
@@ -300,7 +301,7 @@ def review_main(argv: list[str] | None = None) -> None:
 
     item, entry = candidate
     try:
-        item = mark_surfaced(index, entry.entry_id)
+        item = mark_surfaced(index, entry.entry_id, awaiting_rating=args.active_review)
     except KeyError:
         _error(f"Item '{entry.entry_id}' not found in index", as_json=args.json)
     try:

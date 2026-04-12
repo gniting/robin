@@ -20,7 +20,7 @@ agent-workspace/
         poetry/
           20260409-a1f3c9.png
       topics/
-        reasoning.md
+        wisdom.md
         poetry.md
         quotes.md
 ```
@@ -187,7 +187,7 @@ Field meanings:
 - Choose a topic by name when there is a clear match.
 - If topic names alone are ambiguous, inspect relevant topic files or use host search for more context.
 - Prefer reusing an existing topic over creating a near-duplicate.
-- Prefer durable, reusable topics such as `writing`, `poetry`, `ai-reasoning`, or `talks`.
+- Prefer durable, reusable topics such as `quotes`, `wisdom`, `poetry`, or `talks`.
 - Create a new topic only when no existing topic clearly fits.
 - Ask the user when two existing topics are both plausible.
 - Before filing, run `python3 scripts/search.py --state-dir <state-dir> "<distinctive phrase from the content>" --json` or use host search against Robin topic files.
@@ -211,7 +211,7 @@ Robin accepts media with these rules:
 - text entries may attach a local image with `--media-path`; Robin keeps `entry_type` as `text`, sets `media_source`, and does not require media metadata
 - remote image URLs: not supported directly by Robin's CLI
 - video URLs: accepted and stored by reference
-- uploaded or local video files: rejected
+- uploaded or local video files: rejected; if the user cannot provide a shareable `http(s)` URL, save a normal `text` entry with the local path/context and tell the user Robin did not store the video file itself
 
 Robin will not store a media entry unless the caller provides:
 
@@ -270,7 +270,7 @@ Use `--json` whenever command output needs to be parsed programmatically. Withou
 CLI flags by command:
 
 - `add_entry.py`: `--state-dir`, `--topic`, `--entry-type text|image|video`, `--content`, `--description`, `--source`, `--media-path`, `--media-url`, `--creator`, `--published-at`, `--summary`, `--note`, `--tags`, `--json`
-- `review.py`: `--state-dir`, `--status`, `--rate ID RATING`, `--json`
+- `review.py`: `--state-dir`, `--status`, `--active-review`, `--rate ID RATING`, `--json`
 - `search.py`: `--state-dir`, optional positional `query` string, `--topic`, `--tags`, `--json`
 - `selftest.py`: optional `--state-dir` for non-destructive setup checks, `--keep-temp`
 - `topics.py`: `--state-dir`, `--json`
@@ -292,6 +292,7 @@ Examples:
 ```bash
 python3 scripts/search.py --state-dir /path/to/data/robin "clear thinking" --json
 python3 scripts/review.py --state-dir /path/to/data/robin --json
+python3 scripts/review.py --state-dir /path/to/data/robin --active-review --json
 python3 scripts/review.py --state-dir /path/to/data/robin --status --json
 python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5
 python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5 --json
@@ -327,6 +328,8 @@ Robin maintains a review index keyed by entry `id`. It stores:
 
 Scheduled recall means Robin resurfaces an item for learning. It is not an active review session. Cron or scheduled recall messages should use the same recall template for every entry type and should not ask the user to reply with a bare `1`-`5` rating.
 
+If the host scheduler supports skill metadata, scheduled recall jobs should load the `robin` skill. If it does not, the cron prompt must explicitly follow this review behavior.
+
 Default recall text output:
 
 ```text
@@ -352,14 +355,15 @@ Review behavior:
 3. Then lower-rated items.
 4. Then items with the fewest total prior surfaces.
 5. It skips items surfaced within `review_cooldown_days`.
-6. When Robin surfaces an item, it immediately increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`.
-7. A subsequent `--rate` call for that surfaced item overwrites the previous rating and sets `_awaiting_rating` back to `false` without incrementing `times_surfaced` again.
+6. Scheduled recall is the default: `python3 scripts/review.py --state-dir <state-dir>` increments `times_surfaced`, sets `last_surfaced`, and keeps `_awaiting_rating` as `false`.
+7. Active review is explicit: `python3 scripts/review.py --state-dir <state-dir> --active-review` increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`.
+8. A subsequent `--rate` call for that actively surfaced item overwrites the previous rating and sets `_awaiting_rating` back to `false` without incrementing `times_surfaced` again.
 
 If `--rate` is called directly on an item that was not surfaced first, Robin still sets `last_surfaced`, increments `times_surfaced`, and keeps `_awaiting_rating` as `false`.
 
 Preferred rating flow:
 
-- Use `python3 scripts/review.py --state-dir <state-dir> --json` to surface an item.
+- Use `python3 scripts/review.py --state-dir <state-dir> --active-review --json` to surface an item in a live active-review session.
 - After the user rates that surfaced item, call `python3 scripts/review.py --state-dir <state-dir> --rate <id> <rating> --json`.
 - Use direct `--rate` without a prior surface only for manual corrections or when the user explicitly names an existing entry id.
 - Do not request ratings in scheduled recall messages. Only rate during active review sessions or when the user explicitly names a Robin item id.
@@ -373,7 +377,7 @@ Example index shape:
   "items": {
     "20260408-a1f3c9": {
       "id": "20260408-a1f3c9",
-      "topic": "ai-reasoning",
+      "topic": "quotes",
       "date": "2026-04-08",
       "rating": null,
       "last_surfaced": null,
@@ -384,7 +388,7 @@ Example index shape:
 }
 ```
 
-`_awaiting_rating` is an internal review-state flag. It is `true` after Robin surfaces an item and becomes `false` again after that surface is rated.
+`_awaiting_rating` is an internal review-state flag. It is `true` only after Robin surfaces an item with `--active-review` and becomes `false` again after that surface is rated. Scheduled recall leaves it `false`.
 
 ## Troubleshooting
 
@@ -393,8 +397,12 @@ Example index shape:
 - Config has invalid JSON:
   Recreate `robin-config.json` as `{}` or with the supported config fields.
 - Review index not found:
-  Robin can start without it. If you want to create it manually, use `{"items": {}}`.
+  Robin can start without it. If you want to create it manually, use `{"items": {}}`, or run `python3 scripts/reindex.py --state-dir <state-dir> --json` to rebuild from topic files.
+- Review index has invalid JSON:
+  Back up or recreate `robin-review-index.json` as `{"items": {}}`, then run `python3 scripts/reindex.py --state-dir <state-dir> --json` to rebuild from topic files.
 - Media entry rejected:
   Ensure the caller provided `description`, `creator`, `published_at`, and `summary`.
+- Local video rejected:
+  Provide an `http(s)` video URL instead, or save a normal text entry with the local path/context and note that Robin did not store the video file.
 - Image copy failed:
   Confirm the local image path exists and the `media/` directory under the state dir is writable.

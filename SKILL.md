@@ -199,7 +199,7 @@ If the agent notices a Robin bug while using the skill, it should report the iss
 
 - List existing topics with `python3 scripts/topics.py --state-dir <state-dir> --json` before filing.
 - Prefer reusing an existing topic over creating a near-duplicate.
-- Prefer durable, reusable topics such as `writing`, `poetry`, `ai-reasoning`, or `talks`; avoid one-off topics named after a single entry.
+- Prefer durable, reusable topics such as `quotes`, `wisdom`, `poetry`, or `talks`; avoid one-off topics named after a single entry.
 - Create a new topic only when no existing topic clearly fits.
 - If two existing topics are both plausible, ask the user to choose instead of guessing.
 - Topic filenames are generated from topic names as lowercase slugs with non-alphanumeric characters normalized to dashes.
@@ -231,7 +231,7 @@ If the agent notices a Robin bug while using the skill, it should report the iss
   - requires: `topic`, video URL, `description`, `creator`, `published_at`, `summary`
   - optional: `content`, `source`, `note`, `tags`
   - behavior: Robin stores the URL only
-  - rejection: local or uploaded video files are always rejected
+  - rejection: local or uploaded video files are always rejected; if the user cannot provide a shareable `http(s)` URL, save a normal `text` entry with the local path/context and tell the user Robin did not store the video file itself
 
 ### Failure Rules
 
@@ -252,6 +252,8 @@ When the add operation fails, the agent should pass the returned error back to t
 Review is host-triggered. Robin itself does not run a scheduler.
 
 During setup, the agent should ask the user what recall cadence they want. If the host supports scheduling, the agent should usually configure a daily or weekly recall trigger at the user's preferred time. Otherwise, the agent should expose active review as an on-demand action.
+
+If the host scheduler supports skill metadata, scheduled recall jobs should load the `robin` skill. If it does not, the cron prompt must explicitly follow this Review Mode section.
 
 Scheduled recall means Robin resurfaces an item for learning. It is not an active review session, and cron or scheduled recall messages must not ask the user to reply with a bare `1`-`5` rating because the agent may not know that a later numeric reply refers to Robin.
 
@@ -281,15 +283,15 @@ Review behavior:
 4. Then least frequently surfaced items
 5. Skip items surfaced within `review_cooldown_days`
 6. Surface the chosen entry, including media metadata when present
-7. When an item is surfaced, Robin immediately increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`
-8. Accept a rating from 1 to 5
+7. Scheduled recall is the default: `python3 scripts/review.py --state-dir <state-dir>` increments `times_surfaced`, sets `last_surfaced`, and keeps `_awaiting_rating` as `false`
+8. Active review is explicit: `python3 scripts/review.py --state-dir <state-dir> --active-review` increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`
 9. If `_awaiting_rating` is `true`, rating only overwrites the rating and clears `_awaiting_rating` back to `false`
 
 If the agent calls `--rate` directly on an item that was not surfaced first, Robin still sets `last_surfaced`, increments `times_surfaced`, and leaves `_awaiting_rating` as `false`.
 
 Preferred rating flow:
 
-- Use `python3 scripts/review.py --state-dir <state-dir> --json` to surface an item.
+- Use `python3 scripts/review.py --state-dir <state-dir> --active-review --json` to surface an item in a live active-review session.
 - After the user rates that surfaced item, call `python3 scripts/review.py --state-dir <state-dir> --rate <id> <rating> --json`.
 - Use direct `--rate` without a prior surface only for manual corrections or when the user explicitly names an existing entry id.
 - Do not request ratings in scheduled recall messages. Only rate during active review sessions or when the user explicitly names a Robin item id.
@@ -341,7 +343,7 @@ Agents should use `--json` whenever they need to parse command output. Without `
 CLI flags by command:
 
 - `add_entry.py`: `--state-dir`, `--topic`, `--entry-type text|image|video`, `--content`, `--description`, `--source`, `--media-path`, `--media-url`, `--creator`, `--published-at`, `--summary`, `--note`, `--tags`, `--json`
-- `review.py`: `--state-dir`, `--status`, `--rate ID RATING`, `--json`
+- `review.py`: `--state-dir`, `--status`, `--active-review`, `--rate ID RATING`, `--json`
 - `search.py`: `--state-dir`, optional positional `query` string, `--topic`, `--tags`, `--json`
 - `selftest.py`: optional `--state-dir` for non-destructive setup checks, `--keep-temp`
 - `topics.py`: `--state-dir`, `--json`
@@ -358,6 +360,7 @@ The examples below use the repo-local `python3 scripts/*.py` path. The installed
 - `python3 scripts/add_entry.py --state-dir /path/to/data/robin --topic "wisdom" --content "Filed this screenshot to wisdom." --description "A text note with a local screenshot attached for later context." --media-path ~/Downloads/screenshot.png --json`
 - `python3 scripts/review.py --state-dir /path/to/data/robin`
 - `python3 scripts/review.py --state-dir /path/to/data/robin --json`
+- `python3 scripts/review.py --state-dir /path/to/data/robin --active-review --json`
 - `python3 scripts/review.py --state-dir /path/to/data/robin --status --json`
 - `python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5`
 - `python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5 --json`
@@ -379,7 +382,7 @@ Add success shape includes:
 
 - `id`
 - `topic`
-- `filename` (topic file basename only, for example `ai-reasoning.md`)
+- `filename` (topic file basename only, for example `quotes.md`)
 - `entry_type`
 - `media_source`
 - `description`
@@ -457,7 +460,7 @@ Frontmatter parsing rules:
   "items": {
     "20260408-a1f3c9": {
       "id": "20260408-a1f3c9",
-      "topic": "ai-reasoning",
+      "topic": "quotes",
       "date": "2026-04-08",
       "rating": null,
       "last_surfaced": null,
@@ -470,22 +473,19 @@ Frontmatter parsing rules:
 
 Review settings such as `min_items_before_review` and `review_cooldown_days` live only in `robin-config.json`.
 
-`_awaiting_rating` is an internal review-state flag. It is `true` after Robin surfaces an item and becomes `false` again after that surface is rated.
+`_awaiting_rating` is an internal review-state flag. It is `true` only after Robin surfaces an item with `--active-review` and becomes `false` again after that surface is rated. Scheduled recall leaves it `false`.
 
 ## Pitfalls
 
 - Do not use `---` as an entry separator. Use `***`.
-- Uploaded or local video files are rejected.
+- Do not put a standalone `***` line inside entry body content. Robin reserves that exact line as its internal entry separator and rejects it on add.
+- Uploaded or local video files are rejected. Ask for a shareable `http(s)` video URL, or save a normal `text` entry that records the local path/context without storing the video file.
 - A blank line is required after frontmatter.
 - Keep `id` stable when manually editing entries.
 - If `robin-config.json` contains invalid JSON, Robin exits with an error; recreate it as `{}` or with the supported config fields.
-- Robin's frontmatter parser breaks on body lines starting with a digit followed by `.` (e.g. `1.`, `2.`). These are incorrectly parsed as invalid frontmatter keys, corrupting the file. Always ensure body content that starts with numbered lists has a blank line separating it from the frontmatter block, or rewrite such entries so the body doesn't begin with a digit-dot pattern.
+- If `robin-review-index.json` is missing, Robin can rebuild review state as entries are used. If it is corrupted, back it up or recreate it as `{"items": {}}`, then run `python3 scripts/reindex.py --state-dir <state-dir> --json` to rebuild from topic files.
+- Manual topic-file edits must keep valid frontmatter, include a blank line before the body, and avoid standalone `***` lines in body content. Numbered lists are safe after the blank line.
 - Telegram: Sending GIFs via `MEDIA:/path/file.gif` converts them to static photos. To preserve animation, GIFs must be sent as documents, not photos. The gateway may require a document wrapper or alternate approach for animated GIF delivery.
-
-### Frontmatter Pitfalls
-
-- **Body content starting with a numbered list item** — lines like `1. Some text here` in the body will be misidentified as invalid frontmatter. This corrupts the entire topic file and causes `search.py` to fail with a parse error for ALL topic files, not just the affected one. Always put a blank line before any numbered list in body text, and ensure the frontmatter closes cleanly before body content begins.
-- **Tags array with malformed values** — if tags contain spaces without quotes (e.g. `tags: [tag one, tag two]`), parsing may fail. Always use hyphenated or camelCase tag names, never bare words with spaces.
 
 ### Image Filing from Telegram / Chat Platforms
 
@@ -503,4 +503,5 @@ When a user sends an image to file to Robin via a messaging platform:
 When filing many items at once (e.g. a batch of quotes):
 1. Run a single deduplication search with a distinctive phrase before filing — do NOT check each item individually.
 2. Batch all `add_entry.py` calls together in a single terminal block — this is faster and the deduplication check already ran.
-3. If a topic file has a frontmatter parse error, `search.py` fails globally and deduplication checks become impossible until the file is fixed. Always inspect `public-speaking.md` and similar files with list-based body content before bulk imports.
+3. Prefer the CLI over manual Markdown edits. If manually editing topic files, validate that each entry has frontmatter, a blank line, body text, and no standalone `***` line.
+4. If a topic file has a frontmatter parse error, `search.py` fails globally and deduplication checks become impossible until the file is fixed.

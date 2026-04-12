@@ -278,7 +278,7 @@ def test_rate_item_writes_parseable_timestamp(robin_env):
     assert item["rating"] == 5
 
 
-def test_review_marks_item_surfaced_before_rating(robin_env, monkeypatch, capsys):
+def test_scheduled_recall_marks_item_surfaced_without_awaiting_rating(robin_env, monkeypatch, capsys):
     topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(
         serialize_entry(
@@ -318,6 +318,50 @@ def test_review_marks_item_surfaced_before_rating(robin_env, monkeypatch, capsys
     item = load_index()["items"]["20260408-a1f3c9"]
     assert item["last_surfaced"] is not None
     assert item["times_surfaced"] == 1
+    assert item["_awaiting_rating"] is False
+
+
+def test_active_review_marks_item_awaiting_rating(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
+    topic_file.write_text(
+        serialize_entry(
+            build_text_entry(
+                topic="AI Reasoning",
+                content="Only entry.",
+                description="Only description.",
+                source="",
+                note="",
+                tags=["writing"],
+                date_added="2026-04-08",
+                entry_id="20260408-a1f3c9",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    save_index(
+        {
+            "items": {
+                "20260408-a1f3c9": {
+                    "id": "20260408-a1f3c9",
+                    "topic": "ai-reasoning",
+                    "date": "2026-04-08",
+                    "rating": None,
+                    "last_surfaced": None,
+                    "times_surfaced": 0,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py", "--active-review"])
+    review.main()
+    capsys.readouterr()
+
+    item = load_index()["items"]["20260408-a1f3c9"]
+    assert item["last_surfaced"] is not None
+    assert item["times_surfaced"] == 1
+    assert item["_awaiting_rating"] is True
 
 
 def test_rate_after_surface_does_not_increment_times_surfaced_twice(robin_env, monkeypatch, capsys):
@@ -353,7 +397,7 @@ def test_rate_after_surface_does_not_increment_times_surfaced_twice(robin_env, m
         }
     )
 
-    monkeypatch.setattr("sys.argv", ["review.py"])
+    monkeypatch.setattr("sys.argv", ["review.py", "--active-review"])
     review.main()
     capsys.readouterr()
 
