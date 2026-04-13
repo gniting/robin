@@ -33,6 +33,8 @@ robin-search = "robin.cli:search_main"
 robin-topics = "robin.cli:topics_main"
 robin-review = "robin.cli:review_main"
 robin-reindex = "robin.cli:reindex_main"
+robin-doctor = "robin.cli:doctor_main"
+robin-entries = "robin.cli:entries_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

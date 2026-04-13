@@ -286,3 +286,150 @@ def test_add_entry_rejects_reserved_separator_at_end_of_body(robin_env, monkeypa
 
     output = json.loads(capsys.readouterr().out)
     assert "standalone '***' line" in output["error"]
+
+
+def test_add_entry_blocks_duplicate_source_by_default(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Writing",
+            "--content",
+            "Original body.",
+            "--description",
+            "Original description.",
+            "--source",
+            "https://example.com/article",
+            "--json",
+        ],
+    )
+    add_entry.main()
+    capsys.readouterr()
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Notes",
+            "--content",
+            "Different body.",
+            "--description",
+            "Different description.",
+            "--source",
+            "https://example.com/article",
+            "--json",
+        ],
+    )
+    try:
+        add_entry.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected duplicate source to be blocked")
+
+    output = json.loads(capsys.readouterr().out)
+    assert "Duplicate Robin entry" in output["error"]
+    assert output["duplicates"][0]["source"] == "https://example.com/article"
+    assert not (robin_env["topics_dir"] / "notes.md").exists()
+
+
+def test_add_entry_blocks_duplicate_body_by_default(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Writing",
+            "--content",
+            "Write as if speaking to a smart friend.",
+            "--description",
+            "Original description.",
+            "--json",
+        ],
+    )
+    add_entry.main()
+    capsys.readouterr()
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Notes",
+            "--content",
+            "Write   as if speaking\nto a smart friend.",
+            "--description",
+            "Different description.",
+            "--json",
+        ],
+    )
+    try:
+        add_entry.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected duplicate body to be blocked")
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["duplicates"][0]["topic"] == "writing"
+
+
+def test_add_video_entry_blocks_duplicate_media_url_by_default(robin_env, monkeypatch, capsys):
+    args = [
+        "add_entry.py",
+        "--topic",
+        "Talks",
+        "--entry-type",
+        "video",
+        "--media-url",
+        "https://example.com/watch?v=abc123",
+        "--description",
+        "A talk to revisit later.",
+        "--creator",
+        "Speaker Name",
+        "--published-at",
+        "2025-01-01",
+        "--summary",
+        "A concise summary of the talk.",
+        "--json",
+    ]
+    monkeypatch.setattr("sys.argv", args)
+    add_entry.main()
+    capsys.readouterr()
+
+    monkeypatch.setattr("sys.argv", args)
+    try:
+        add_entry.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected duplicate media URL to be blocked")
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["duplicates"][0]["media_source"] == "https://example.com/watch?v=abc123"
+
+
+def test_add_entry_allow_duplicate_saves(robin_env, monkeypatch, capsys):
+    base_args = [
+        "add_entry.py",
+        "--topic",
+        "Writing",
+        "--content",
+        "Repeatable body.",
+        "--description",
+        "A description.",
+        "--json",
+    ]
+    monkeypatch.setattr("sys.argv", base_args)
+    add_entry.main()
+    capsys.readouterr()
+
+    monkeypatch.setattr("sys.argv", base_args[:-1] + ["--allow-duplicate", "--json"])
+    add_entry.main()
+    output = json.loads(capsys.readouterr().out)
+    content = (robin_env["topics_dir"] / "writing.md").read_text(encoding="utf-8")
+
+    assert output["topic"] == "writing"
+    assert content.count("Repeatable body.") == 2

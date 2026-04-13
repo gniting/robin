@@ -6,6 +6,16 @@ from datetime import date
 from typing import NoReturn
 
 from robin.config import load_config, load_index, save_index, topics_path
+from robin.doctor import run_doctor
+from robin.entry_ops import (
+    EntryOperationError,
+    delete_entry,
+    duplicate_candidates,
+    duplicate_payload,
+    load_entries_for_dedupe,
+    move_entry,
+    remove_new_media_if_present,
+)
 from robin.index import ensure_entry_in_index, rebuild_index
 from robin.media import copy_image_to_vault, is_video_url
 from robin.parser import RobinEntryParseError, SEPARATOR, load_all_entries, load_topic_entries, topic_slug, topic_to_filename
@@ -19,6 +29,21 @@ def _error(message: str, *, as_json: bool) -> NoReturn:
         print(json.dumps({"error": message}, indent=2))
     else:
         print(f"ERROR: {message}")
+    raise SystemExit(1)
+
+
+def _duplicate_error(matches: list, *, as_json: bool, media_source_to_cleanup: str = "", explicit_state_dir: str | None = None) -> NoReturn:
+    remove_new_media_if_present(explicit_state_dir, media_source_to_cleanup)
+    payload = duplicate_payload(matches)
+    message = "Duplicate Robin entry found. Rerun with --allow-duplicate if this is intentional."
+    if as_json:
+        print(json.dumps({"error": message, "duplicates": payload}, indent=2))
+    else:
+        print(f"ERROR: {message}")
+        for entry in payload:
+            location = f"{entry['topic']} / {entry['id']}"
+            detail = entry.get("source") or entry.get("media_source") or entry.get("description") or "No detail"
+            print(f"  - {location}: {detail}")
     raise SystemExit(1)
 
 
@@ -95,6 +120,7 @@ def add_main(argv: list[str] | None = None) -> None:
     parser.add_argument("--summary", help="Required for media entries")
     parser.add_argument("--note", help="Robin note")
     parser.add_argument("--tags", default="", help="Comma-separated tags")
+    parser.add_argument("--allow-duplicate", action="store_true", help="Save even if Robin finds a likely duplicate")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
     args = parser.parse_args(argv)
 
@@ -183,6 +209,19 @@ def add_main(argv: list[str] | None = None) -> None:
 
     serialized_entry = serialize_entry(entry)
     _validate_serialized_entry(serialized_entry, as_json=args.json)
+    if not args.allow_duplicate:
+        try:
+            matches = duplicate_candidates(load_entries_for_dedupe(config, args.state_dir), entry)
+        except RobinEntryParseError as exc:
+            remove_new_media_if_present(args.state_dir, entry.media_source)
+            _error(str(exc), as_json=args.json)
+        if matches:
+            _duplicate_error(
+                matches,
+                as_json=args.json,
+                media_source_to_cleanup=entry.media_source,
+                explicit_state_dir=args.state_dir,
+            )
     try:
         filename = _add_to_topic(config, args.state_dir, topic, serialized_entry)
     except OSError as exc:
@@ -468,6 +507,74 @@ def topics_main(argv: list[str] | None = None) -> None:
         print(f"  {topic['topic']}")
         print(f"    {topic['entries']} entries  {stars}  {topic['rated']} rated / {topic['unrated']} unrated")
         print()
+
+
+def entries_main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Move or delete Robin entries")
+    _add_state_dir_arg(parser)
+    parser.add_argument("--delete", metavar="ID", help="Delete an entry by stable entry id")
+    parser.add_argument("--move", metavar="ID", help="Move an entry by stable entry id")
+    parser.add_argument("--topic", help="Destination topic for --move")
+    parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    args = parser.parse_args(argv)
+
+    if bool(args.delete) == bool(args.move):
+        _error("Pass exactly one of --delete ID or --move ID.", as_json=args.json)
+    if args.delete and args.topic:
+        _error("--topic is only valid with --move.", as_json=args.json)
+    if args.move and not (args.topic or "").strip():
+        _error("--move requires --topic.", as_json=args.json)
+
+    config = load_config(args.state_dir)
+    index = load_index(args.state_dir)
+
+    try:
+        if args.delete:
+            payload = delete_entry(config, args.state_dir, index, args.delete)
+        else:
+            payload = move_entry(config, args.state_dir, index, args.move, args.topic or "")
+        save_index(index, args.state_dir)
+    except RobinEntryParseError as exc:
+        _error(str(exc), as_json=args.json)
+    except EntryOperationError as exc:
+        _error(str(exc), as_json=args.json)
+    except OSError as exc:
+        _error(f"Failed to update entry files: {exc}", as_json=args.json)
+
+    if args.json:
+        _emit_json(payload)
+        return
+    if payload["status"] == "deleted":
+        print(f"✓ Deleted {payload['id']} from {payload['filename']}")
+    else:
+        print(f"✓ Moved {payload['id']} from {payload['from_topic']} to {payload['to_topic']}")
+
+
+def _print_doctor_report(payload: dict) -> None:
+    print(f"Robin doctor: {'OK' if payload['ok'] else 'ISSUES FOUND'}")
+    print(f"Errors: {payload['errors']}  Warnings: {payload['warnings']}")
+    if not payload["diagnostics"]:
+        print("No issues found.")
+        return
+
+    print()
+    for item in payload["diagnostics"]:
+        location = f" ({item['path']})" if item.get("path") else ""
+        print(f"[{item['level'].upper()}] {item['code']}: {item['message']}{location}")
+
+
+def doctor_main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Check a Robin library for common health issues")
+    _add_state_dir_arg(parser)
+    parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    args = parser.parse_args(argv)
+
+    payload = run_doctor(args.state_dir)
+    if args.json:
+        _emit_json(payload)
+    else:
+        _print_doctor_report(payload)
+    raise SystemExit(0 if payload["ok"] else 1)
 
 
 def reindex_main(argv: list[str] | None = None) -> None:

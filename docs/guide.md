@@ -190,10 +190,9 @@ Field meanings:
 - Prefer durable, reusable topics such as `quotes`, `wisdom`, `poetry`, or `talks`.
 - Create a new topic only when no existing topic clearly fits.
 - Ask the user when two existing topics are both plausible.
-- Before filing, run `python3 scripts/search.py --state-dir <state-dir> "<distinctive phrase from the content>" --json` or use host search against Robin topic files.
-- Treat an entry as an obvious duplicate when a returned entry has the same source URL or substantially the same body text.
-- Ask before saving exact duplicates.
-- For near-duplicates, save only when the difference is worth preserving and explain the difference in `description`.
+- `add_entry.py` blocks deterministic duplicates by default when an existing entry has the same source URL, same media reference, or same normalized body text.
+- Use `--allow-duplicate` only when the duplicate is intentional.
+- For near-duplicates with meaningful differences, save only when the difference is worth preserving and explain the difference in `description`.
 - Robin has no hard body-size limit, but agents should summarize very long articles or transcripts unless the user explicitly asks to store the full text.
 
 Field semantics:
@@ -249,6 +248,8 @@ Use `robin-search` for:
 Default repo-local commands for agents:
 
 - `python3 scripts/add_entry.py`
+- `python3 scripts/doctor.py`
+- `python3 scripts/entries.py`
 - `python3 scripts/review.py`
 - `python3 scripts/reindex.py`
 - `python3 scripts/search.py`
@@ -258,6 +259,8 @@ Default repo-local commands for agents:
 Optional installed entry points for advanced users:
 
 - `robin-add`
+- `robin-doctor`
+- `robin-entries`
 - `robin-review`
 - `robin-reindex`
 - `robin-search`
@@ -269,7 +272,9 @@ Use `--json` whenever command output needs to be parsed programmatically. Withou
 
 CLI flags by command:
 
-- `add_entry.py`: `--state-dir`, `--topic`, `--entry-type text|image|video`, `--content`, `--description`, `--source`, `--media-path`, `--media-url`, `--creator`, `--published-at`, `--summary`, `--note`, `--tags`, `--json`
+- `add_entry.py`: `--state-dir`, `--topic`, `--entry-type text|image|video`, `--content`, `--description`, `--source`, `--media-path`, `--media-url`, `--creator`, `--published-at`, `--summary`, `--note`, `--tags`, `--allow-duplicate`, `--json`
+- `doctor.py`: `--state-dir`, `--json`
+- `entries.py`: `--state-dir`, `--delete ID`, `--move ID --topic TOPIC`, `--json`
 - `review.py`: `--state-dir`, `--status`, `--active-review`, `--rate ID RATING`, `--json`
 - `search.py`: `--state-dir`, optional positional `query` string, `--topic`, `--tags`, `--json`
 - `selftest.py`: optional `--state-dir` for non-destructive setup checks, `--keep-temp`
@@ -283,7 +288,7 @@ Recommended path for agents:
 Optional path for advanced users:
 
 - `pip install -e .`
-- then use the installed `robin-add`, `robin-review`, `robin-reindex`, `robin-search`, and `robin-topics` entry points
+- then use the installed `robin-add`, `robin-doctor`, `robin-entries`, `robin-review`, `robin-reindex`, `robin-search`, and `robin-topics` entry points
 
 The repo-local `python3 scripts/*.py` commands work without `pip install -e .` or manual path setup.
 
@@ -296,6 +301,10 @@ python3 scripts/review.py --state-dir /path/to/data/robin --active-review --json
 python3 scripts/review.py --state-dir /path/to/data/robin --status --json
 python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5
 python3 scripts/review.py --state-dir /path/to/data/robin --rate 20260408-a1f3c9 5 --json
+python3 scripts/doctor.py --state-dir /path/to/data/robin
+python3 scripts/doctor.py --state-dir /path/to/data/robin --json
+python3 scripts/entries.py --state-dir /path/to/data/robin --move 20260408-a1f3c9 --topic "AI Reasoning" --json
+python3 scripts/entries.py --state-dir /path/to/data/robin --delete 20260408-a1f3c9 --json
 python3 scripts/search.py --state-dir /path/to/data/robin --topic "AI Reasoning" --json
 python3 scripts/search.py --state-dir /path/to/data/robin --tags "writing,clarity" --json
 python3 scripts/search.py --state-dir /path/to/data/robin --topic "AI Reasoning" --tags "clarity" --json
@@ -315,6 +324,10 @@ python3 scripts/reindex.py --state-dir /path/to/data/robin --json
 The examples above use the repo-local `python3 scripts/*.py` path. If you installed the package with `pip install -e .`, the `robin-*` entry points are equivalent aliases.
 
 All CLI helpers support `--json`.
+
+Use `python3 scripts/doctor.py --state-dir <state-dir> --json` to check config, topic parsing, local media references, and review-index drift without changing the library. Doctor is read-only; use `python3 scripts/reindex.py --state-dir <state-dir> --json` when it reports review-index drift.
+
+Use `python3 scripts/entries.py --state-dir <state-dir> --move <id> --topic <topic>` to move an entry, or `python3 scripts/entries.py --state-dir <state-dir> --delete <id>` to delete one. Delete removes the entry and its review-index item but keeps copied media files. `search.py` and `topics.py` remain read-only.
 
 Use `python3 scripts/reindex.py --state-dir <state-dir>` after manual edits to topic files, when rebuilding review state from existing markdown, or when importing legacy entries and wanting the review index rebuilt from disk.
 
@@ -400,6 +413,8 @@ Example index shape:
   Robin can start without it. If you want to create it manually, use `{"items": {}}`, or run `python3 scripts/reindex.py --state-dir <state-dir> --json` to rebuild from topic files.
 - Review index has invalid JSON:
   Back up or recreate `robin-review-index.json` as `{"items": {}}`, then run `python3 scripts/reindex.py --state-dir <state-dir> --json` to rebuild from topic files.
+- Library health is uncertain:
+  Run `python3 scripts/doctor.py --state-dir <state-dir> --json` for a read-only diagnostic report.
 - Media entry rejected:
   Ensure the caller provided `description`, `creator`, `published_at`, and `summary`.
 - Local video rejected:

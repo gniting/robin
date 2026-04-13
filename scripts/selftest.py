@@ -123,7 +123,7 @@ def _check_topics_json(state_dir: Path) -> list[dict]:
     return payload
 
 
-def _add_text_entry(state_dir: Path) -> dict:
+def _add_text_entry(state_dir: Path, *, allow_duplicate: bool = False) -> dict:
     payload = _run_json(
         [
             _script("add_entry.py"),
@@ -137,6 +137,7 @@ def _add_text_entry(state_dir: Path) -> dict:
             "A temporary selftest entry used to verify Robin's write path.",
             "--tags",
             "selftest,robin",
+            *(["--allow-duplicate"] if allow_duplicate else []),
             "--json",
         ]
     )
@@ -219,14 +220,64 @@ def _check_review_and_rate(state_dir: Path) -> None:
         raise SelftestFailure(f"Unexpected rate payload: {rated}")
 
 
+def _check_duplicate_rejected(state_dir: Path) -> None:
+    payload = _run_json(
+        [
+            _script("add_entry.py"),
+            "--state-dir",
+            str(state_dir),
+            "--topic",
+            "Robin Selftest",
+            "--content",
+            "Robin selftest distinctive phrase alpha bravo.",
+            "--description",
+            "A temporary selftest entry used to verify Robin's write path.",
+            "--tags",
+            "selftest,robin",
+            "--json",
+        ],
+        expect_success=False,
+    )
+    if not isinstance(payload, dict) or "duplicates" not in payload:
+        raise SelftestFailure(f"Expected duplicate error payload, got {payload}")
+
+
 def _check_duplicate_allowed(state_dir: Path) -> None:
-    payload = _add_text_entry(state_dir)
+    payload = _add_text_entry(state_dir, allow_duplicate=True)
     if not payload.get("id"):
         raise SelftestFailure(f"Duplicate add did not return an id: {payload}")
     topics = _check_topics_json(state_dir)
     match = next((item for item in topics if item.get("topic") == "robin-selftest"), None)
     if not match or match.get("entries") < 2:
         raise SelftestFailure(f"Expected duplicate add to create a second entry, got {topics}")
+
+
+def _check_entries_move_and_delete(state_dir: Path) -> None:
+    payload = _run_json(
+        [
+            _script("add_entry.py"),
+            "--state-dir",
+            str(state_dir),
+            "--topic",
+            "Entry Management",
+            "--content",
+            "Robin selftest entry management phrase.",
+            "--description",
+            "A temporary selftest entry used to verify Robin's entry management path.",
+            "--json",
+        ]
+    )
+    if not isinstance(payload, dict) or not payload.get("id"):
+        raise SelftestFailure(f"Expected add payload for entry management check, got {payload}")
+    entry_id = payload["id"]
+
+    moved = _run_json([_script("entries.py"), "--state-dir", str(state_dir), "--move", entry_id, "--topic", "Moved Entries", "--json"])
+    if not isinstance(moved, dict) or moved.get("status") != "moved" or moved.get("to_topic") != "moved-entries":
+        raise SelftestFailure(f"Expected move payload, got {moved}")
+
+    deleted = _run_json([_script("entries.py"), "--state-dir", str(state_dir), "--delete", entry_id, "--json"])
+    if not isinstance(deleted, dict) or deleted.get("status") != "deleted":
+        raise SelftestFailure(f"Expected delete payload, got {deleted}")
 
 
 def _check_local_video_rejected(state_dir: Path) -> None:
@@ -285,6 +336,15 @@ def _check_missing_media_metadata_rejected(state_dir: Path) -> None:
         raise SelftestFailure(f"Expected error payload, got {payload}")
 
 
+def _check_doctor_json(state_dir: Path) -> None:
+    payload = _run_json([_script("doctor.py"), "--state-dir", str(state_dir), "--json"])
+    if not isinstance(payload, dict):
+        raise SelftestFailure("doctor.py --json did not return an object")
+    _require_keys(payload, {"ok", "errors", "warnings", "diagnostics"})
+    if payload["ok"] is not True or payload["errors"] != 0:
+        raise SelftestFailure(f"Expected healthy doctor payload, got {payload}")
+
+
 def _check_reindex_after_cleanup(state_dir: Path) -> None:
     topic_file = state_dir / "topics" / "robin-selftest.md"
     if topic_file.exists():
@@ -300,6 +360,7 @@ def _check_reindex_after_cleanup(state_dir: Path) -> None:
 def _run_setup_checks(reporter: Reporter, state_dir: Path) -> None:
     reporter.check("robin-config.json exists and parses", lambda: _check_setup(state_dir))
     reporter.check("topics.py returns valid JSON", lambda: _check_topics_json(state_dir))
+    reporter.check("doctor.py returns healthy JSON", lambda: _check_doctor_json(state_dir))
 
 
 def _run_full_selftest(reporter: Reporter, state_dir: Path) -> None:
@@ -314,7 +375,9 @@ def _run_full_selftest(reporter: Reporter, state_dir: Path) -> None:
     else:
         reporter.check("search finds added entry", lambda: (_ for _ in ()).throw(SelftestFailure("add step failed")))
     reporter.check("review surfaces an item and rate updates state", lambda: _check_review_and_rate(state_dir))
-    reporter.check("duplicate text entry is accepted", lambda: _check_duplicate_allowed(state_dir))
+    reporter.check("duplicate text entry is rejected by default", lambda: _check_duplicate_rejected(state_dir))
+    reporter.check("duplicate text entry is accepted with override", lambda: _check_duplicate_allowed(state_dir))
+    reporter.check("entries.py moves and deletes an entry", lambda: _check_entries_move_and_delete(state_dir))
     reporter.check("video with local file is rejected", lambda: _check_local_video_rejected(state_dir))
     reporter.check("media entry missing creator is rejected", lambda: _check_missing_media_metadata_rejected(state_dir))
     reporter.check("reindex after cleanup succeeds", lambda: _check_reindex_after_cleanup(state_dir))

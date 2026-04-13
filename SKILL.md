@@ -51,7 +51,7 @@ On setup, the agent should:
 4. ensure the state directory contains `topics/` and `media/`
 5. optionally create `robin-review-index.json`; if it is missing, Robin starts with an empty index and writes the file when review state is saved
 6. ask the user how often scheduled recall should happen and when it should run
-7. verify setup with a quick check by running `python3 scripts/topics.py --state-dir <state-dir>`
+7. verify setup with a quick check by running `python3 scripts/doctor.py --state-dir <state-dir> --json`
 8. optionally run the full integration check with `python3 scripts/selftest.py`
 
 Example `robin-config.json`:
@@ -105,6 +105,8 @@ Default runnable path:
 
 - agents can run the repo-local scripts directly without installing the package:
   - `python3 scripts/add_entry.py`
+  - `python3 scripts/doctor.py`
+  - `python3 scripts/entries.py`
   - `python3 scripts/review.py`
   - `python3 scripts/reindex.py`
   - `python3 scripts/search.py`
@@ -117,6 +119,8 @@ Optional installed path for advanced users:
 
 - if the user explicitly wants installed entry points and the agent runs `pip install -e .`, Robin also exposes:
   - `robin-add`
+  - `robin-doctor`
+  - `robin-entries`
   - `robin-review`
   - `robin-reindex`
   - `robin-search`
@@ -132,7 +136,7 @@ After setup or after a Robin upgrade, the agent can run:
 python3 scripts/selftest.py
 ```
 
-By default, this uses a temporary state directory and does not touch the user's real Robin library. It verifies setup, add, search, review, rating, rejection, and reindex behavior against the documented JSON contracts.
+By default, this uses a temporary state directory and does not touch the user's real Robin library. It verifies setup, doctor, entries, add, search, review, rating, duplicate rejection, override, and reindex behavior against the documented JSON contracts.
 
 For a non-destructive check of a real state directory, run:
 
@@ -140,7 +144,7 @@ For a non-destructive check of a real state directory, run:
 python3 scripts/selftest.py --state-dir <state-dir>
 ```
 
-That mode checks only that `robin-config.json`, `topics/`, `media/`, and `topics.py --json` work for the supplied state directory.
+That mode checks only that `robin-config.json`, `topics/`, `media/`, `topics.py --json`, and `doctor.py --json` work for the supplied state directory.
 
 ## Agent Responsibilities
 
@@ -192,7 +196,7 @@ If the agent notices a Robin bug while using the skill, it should report the iss
 4. If topic names alone are ambiguous, the agent should inspect relevant topic files or use host search for more context.
 5. If two existing topics are still both plausible, the agent asks the user to choose.
 6. If no existing topic fits, the agent suggests a new reusable topic name and files the item there.
-7. Before calling `add_entry.py`, the agent checks for duplicates using the Content Policy below.
+7. `add_entry.py` checks deterministic duplicates before saving; the agent uses `--allow-duplicate` only when the user intentionally wants another copy.
 8. For explicit `image` or `video` entries, the agent must also supply `creator`, `published_at`, and `summary`. If any are missing, Robin rejects the entry.
 
 ### Topic Strategy
@@ -206,9 +210,8 @@ If the agent notices a Robin bug while using the skill, it should report the iss
 
 ### Content Policy
 
-- Before filing, run `python3 scripts/search.py --state-dir <state-dir> "<distinctive phrase from the content>" --json` or use host search against Robin topic files.
-- Treat an entry as an obvious duplicate when a returned entry has the same source URL or substantially the same body text.
-- If the new item appears to be an exact duplicate, ask the user whether to skip it or save another copy.
+- `add_entry.py` blocks deterministic duplicates by default when an existing entry has the same source URL, same media reference, or same normalized body text.
+- If the user intentionally wants another copy, pass `--allow-duplicate`.
 - If the item is a near-duplicate with meaningful differences, file it only when the difference is worth preserving and explain that in `description`.
 - Robin has no hard body-size limit, but the agent should summarize very long articles/transcripts unless the user explicitly wants the full text stored.
 - `description` is required context for every entry: why this item matters and how to recognize it later.
@@ -320,6 +323,8 @@ Use `robin-search` for:
 Default repo-local commands for agents:
 
 - `python3 scripts/add_entry.py`
+- `python3 scripts/doctor.py`
+- `python3 scripts/entries.py`
 - `python3 scripts/review.py`
 - `python3 scripts/reindex.py`
 - `python3 scripts/search.py`
@@ -329,6 +334,8 @@ Default repo-local commands for agents:
 Optional installed entry points for advanced users:
 
 - `robin-add`
+- `robin-doctor`
+- `robin-entries`
 - `robin-review`
 - `robin-reindex`
 - `robin-search`
@@ -342,7 +349,9 @@ Agents should use `--json` whenever they need to parse command output. Without `
 
 CLI flags by command:
 
-- `add_entry.py`: `--state-dir`, `--topic`, `--entry-type text|image|video`, `--content`, `--description`, `--source`, `--media-path`, `--media-url`, `--creator`, `--published-at`, `--summary`, `--note`, `--tags`, `--json`
+- `add_entry.py`: `--state-dir`, `--topic`, `--entry-type text|image|video`, `--content`, `--description`, `--source`, `--media-path`, `--media-url`, `--creator`, `--published-at`, `--summary`, `--note`, `--tags`, `--allow-duplicate`, `--json`
+- `doctor.py`: `--state-dir`, `--json`
+- `entries.py`: `--state-dir`, `--delete ID`, `--move ID --topic TOPIC`, `--json`
 - `review.py`: `--state-dir`, `--status`, `--active-review`, `--rate ID RATING`, `--json`
 - `search.py`: `--state-dir`, optional positional `query` string, `--topic`, `--tags`, `--json`
 - `selftest.py`: optional `--state-dir` for non-destructive setup checks, `--keep-temp`
@@ -484,6 +493,8 @@ Review settings such as `min_items_before_review` and `review_cooldown_days` liv
 - Keep `id` stable when manually editing entries.
 - If `robin-config.json` contains invalid JSON, Robin exits with an error; recreate it as `{}` or with the supported config fields.
 - If `robin-review-index.json` is missing, Robin can rebuild review state as entries are used. If it is corrupted, back it up or recreate it as `{"items": {}}`, then run `python3 scripts/reindex.py --state-dir <state-dir> --json` to rebuild from topic files.
+- If library health is uncertain, run `python3 scripts/doctor.py --state-dir <state-dir> --json` for a read-only diagnostic report.
+- Use `python3 scripts/entries.py --state-dir <state-dir> --move <id> --topic <topic>` to move entries and `python3 scripts/entries.py --state-dir <state-dir> --delete <id>` to delete entries. Delete keeps copied media files.
 - Manual topic-file edits must keep valid frontmatter, include a blank line before the body, and avoid standalone `***` lines in body content. Numbered lists are safe after the blank line.
 - Telegram: Sending GIFs via `MEDIA:/path/file.gif` converts them to static photos. To preserve animation, GIFs must be sent as documents, not photos. The gateway may require a document wrapper or alternate approach for animated GIF delivery.
 
@@ -501,7 +512,7 @@ When a user sends an image to file to Robin via a messaging platform:
 ### Bulk Import Workflow
 
 When filing many items at once (e.g. a batch of quotes):
-1. Run a single deduplication search with a distinctive phrase before filing — do NOT check each item individually.
-2. Batch all `add_entry.py` calls together in a single terminal block — this is faster and the deduplication check already ran.
+1. Batch `add_entry.py` calls together when practical; each call performs deterministic duplicate checks before saving.
+2. Use `--allow-duplicate` only for entries the user intentionally wants saved as another copy.
 3. Prefer the CLI over manual Markdown edits. If manually editing topic files, validate that each entry has frontmatter, a blank line, body text, and no standalone `***` line.
-4. If a topic file has a frontmatter parse error, `search.py` fails globally and deduplication checks become impossible until the file is fixed.
+4. If a topic file has a frontmatter parse error, `add_entry.py` and `search.py` can fail globally until the file is fixed.

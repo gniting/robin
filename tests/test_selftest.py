@@ -17,4 +17,4 @@ def test_selftest_script_passes():
     )
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "11/11 passed" in proc.stdout
+    assert "14/14 passed" in proc.stdout

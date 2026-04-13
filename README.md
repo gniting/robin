@@ -26,6 +26,8 @@ Over time, a commonplace book becomes more than a record of reading. It turns in
 - Spaced repetition review — Surfaces items on a configurable schedule so you reinforce learning
 - Rating — Rate surfaced items 1–5; Robin tracks what you care about most over time
 - Searchable library — All entries live in plain markdown topic files; open in Obsidian, Logseq, or any editor
+- Entry management — Move or delete entries by stable id while keeping review state in sync
+- Health check — Diagnose config, topic files, media references, and review-index drift without changing data
 - Agent-agnostic — Works with any agent that can read/write local files, run Python scripts, and pass CLI arguments or environment variables
 
 ## Before You Start
@@ -83,9 +85,9 @@ Typical host examples:
 - Hermes: `~/.hermes/data/robin/`
 - OpenClaw: `~/.openclaw/workspace/data/robin/`
 
-By default, an agent can run Robin immediately through the repo-local Python scripts in `scripts/`. No `pip install -e .` or manual path setup is required. Installing the package to get the `robin-add`, `robin-review`, and related entry points is optional.
+By default, an agent can run Robin immediately through the repo-local Python scripts in `scripts/`. No `pip install -e .` or manual path setup is required. Installing the package to get the `robin-add`, `robin-doctor`, `robin-entries`, `robin-review`, and related entry points is optional.
 
-After setup, your agent can run `python3 scripts/selftest.py` to verify Robin's add, search, review, rate, failure, and reindex paths in a temporary state directory without touching your real Robin library.
+After setup, your agent can run `python3 scripts/doctor.py --state-dir <state-dir> --json` for a read-only health check, or `python3 scripts/selftest.py` to verify Robin's doctor, entries, add, search, review, rate, duplicate, failure, and reindex paths in a temporary state directory without touching your real Robin library.
 
 If your agent supports file indexing, it should index Robin's topic files like any other Markdown content. Use your agent's normal search for broad recall across your whole workspace.
 
