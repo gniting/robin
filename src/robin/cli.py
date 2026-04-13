@@ -57,7 +57,7 @@ def _recall_value(value: str) -> str:
 
 def _print_recall(entry) -> None:
     source = entry.source.strip() or entry.media_source.strip()
-    print("📚 Robin Recall: Helping you learn")
+    print("📚 Robin Recall")
     print()
     print(f"Topic: {_recall_value(entry.topic)}")
     print(f"Type: {_recall_value(entry.entry_type)}")

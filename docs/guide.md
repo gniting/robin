@@ -346,7 +346,7 @@ If the host scheduler supports skill metadata, scheduled recall jobs should load
 Default recall text output:
 
 ```text
-📚 Robin Recall: Helping you learn
+📚 Robin Recall
 
 Topic: <topic>
 Type: <entry_type>

@@ -171,7 +171,7 @@ def test_review_text_output_includes_source(robin_env, monkeypatch, capsys):
     review.main()
     output = capsys.readouterr().out
 
-    assert "📚 Robin Recall: Helping you learn" in output
+    assert "📚 Robin Recall" in output
     assert "Topic: writing" in output
     assert "Type: text" in output
     assert "Source: https://example.com/article" in output
@@ -209,7 +209,7 @@ def test_review_recall_text_output_uses_media_source_when_source_missing(robin_e
     review.main()
     output = capsys.readouterr().out
 
-    assert "📚 Robin Recall: Helping you learn" in output
+    assert "📚 Robin Recall" in output
     assert "Topic: poetry" in output
     assert "Type: image" in output
     assert "Source: media/poetry/20260408-a1f3c9.png" in output
@@ -246,7 +246,7 @@ def test_review_recall_text_output_is_consistent_for_video(robin_env, monkeypatc
     review.main()
     output = capsys.readouterr().out
 
-    assert "📚 Robin Recall: Helping you learn" in output
+    assert "📚 Robin Recall" in output
     assert "Topic: public-speaking" in output
     assert "Type: video" in output
     assert "Source: Patrick Winston -- How to Speak (YouTube)" in output

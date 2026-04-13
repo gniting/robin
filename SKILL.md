@@ -263,7 +263,7 @@ Scheduled recall means Robin resurfaces an item for learning. It is not an activ
 Default recall text output:
 
 ```text
-📚 Robin Recall: Helping you learn
+📚 Robin Recall
 
 Topic: <topic>
 Type: <entry_type>
