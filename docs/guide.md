@@ -352,7 +352,7 @@ Topic: <topic>
 Type: <entry_type>
 Source: <source if present, else media_source if present, else "Not provided">
 Creator: <creator if present, else "Not provided">
-Saved on: <date_added>
+Saved on: <date_added> (<N> days ago)
 
 Description:
 <description if present, else "Not provided">

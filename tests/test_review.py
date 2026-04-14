@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 
@@ -29,6 +29,12 @@ def _save_review_entry(robin_env, filename: str, entry) -> None:
             }
         }
     )
+
+
+class FixedDate(date):
+    @classmethod
+    def today(cls):
+        return cls(2026, 4, 14)
 
 
 def test_review_uses_entry_ids_for_same_day_duplicates(robin_env):
@@ -152,6 +158,7 @@ def test_review_surfaces_media_metadata(robin_env):
 
 
 def test_review_text_output_includes_source(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr("robin.cli.date", FixedDate)
     _save_review_entry(
         robin_env,
         "writing.md",
@@ -176,7 +183,7 @@ def test_review_text_output_includes_source(robin_env, monkeypatch, capsys):
     assert "Type: text" in output
     assert "Source: https://example.com/article" in output
     assert "Creator: Not provided" in output
-    assert "Saved on: 2026-04-08" in output
+    assert "Saved on: 2026-04-08 (6 days ago)" in output
     assert "Description:\nWriting advice." in output
     assert "Body:\nWrite as if speaking to a smart friend." in output
     assert "Rate it" not in output
@@ -185,6 +192,7 @@ def test_review_text_output_includes_source(robin_env, monkeypatch, capsys):
 
 
 def test_review_recall_text_output_uses_media_source_when_source_missing(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr("robin.cli.date", FixedDate)
     _save_review_entry(
         robin_env,
         "poetry.md",
@@ -214,7 +222,7 @@ def test_review_recall_text_output_uses_media_source_when_source_missing(robin_e
     assert "Type: image" in output
     assert "Source: media/poetry/20260408-a1f3c9.png" in output
     assert "Creator: Mary Oliver" in output
-    assert "Saved on: 2026-04-08" in output
+    assert "Saved on: 2026-04-08 (6 days ago)" in output
     assert "Description:\nA photographed excerpt to revisit." in output
     assert "Body:\nOpening lines from the page." in output
     assert "Rate it" not in output
@@ -222,6 +230,7 @@ def test_review_recall_text_output_uses_media_source_when_source_missing(robin_e
 
 
 def test_review_recall_text_output_is_consistent_for_video(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr("robin.cli.date", FixedDate)
     _save_review_entry(
         robin_env,
         "public-speaking.md",
@@ -251,12 +260,85 @@ def test_review_recall_text_output_is_consistent_for_video(robin_env, monkeypatc
     assert "Type: video" in output
     assert "Source: Patrick Winston -- How to Speak (YouTube)" in output
     assert "Creator: Patrick Winston (MIT)" in output
-    assert "Saved on: 2026-04-11" in output
+    assert "Saved on: 2026-04-11 (3 days ago)" in output
     assert "Description:\nPatrick Winston's classic MIT lecture on How to Speak." in output
     assert "Body:\nStart with an empowerment promise, not a joke." in output
     assert "Rate it" not in output
     assert "How well do you remember" not in output
     assert "To rate" not in output
+
+
+def test_review_recall_text_output_shows_zero_days_for_today(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr("robin.cli.date", FixedDate)
+    _save_review_entry(
+        robin_env,
+        "today.md",
+        build_text_entry(
+            topic="Today",
+            content="Fresh entry.",
+            description="Fresh description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-14",
+            entry_id="20260414-a1f3c9",
+        ),
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py"])
+    review.main()
+    output = capsys.readouterr().out
+
+    assert "Saved on: 2026-04-14 (0 days ago)" in output
+
+
+def test_review_recall_text_output_shows_future_dates(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr("robin.cli.date", FixedDate)
+    _save_review_entry(
+        robin_env,
+        "future.md",
+        build_text_entry(
+            topic="Future",
+            content="Future entry.",
+            description="Future description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-16",
+            entry_id="20260416-a1f3c9",
+        ),
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py"])
+    review.main()
+    output = capsys.readouterr().out
+
+    assert "Saved on: 2026-04-16 (in 2 days)" in output
+
+
+def test_review_recall_text_output_leaves_malformed_date_plain(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr("robin.cli.date", FixedDate)
+    _save_review_entry(
+        robin_env,
+        "legacy.md",
+        build_text_entry(
+            topic="Legacy",
+            content="Legacy entry.",
+            description="Legacy description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="not-a-date",
+            entry_id="legacy-date-test",
+        ),
+    )
+
+    monkeypatch.setattr("sys.argv", ["review.py"])
+    review.main()
+    output = capsys.readouterr().out
+
+    assert "Saved on: not-a-date" in output
+    assert "Saved on: not-a-date (" not in output
 
 
 def test_rate_item_writes_parseable_timestamp(robin_env):

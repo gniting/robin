@@ -55,6 +55,22 @@ def _recall_value(value: str) -> str:
     return value.strip() if value.strip() else "Not provided"
 
 
+def _saved_on_value(value: str) -> str:
+    raw = _recall_value(value)
+    if raw == "Not provided":
+        return raw
+
+    try:
+        saved_on = date.fromisoformat(raw)
+    except ValueError:
+        return raw
+
+    delta_days = (date.today() - saved_on).days
+    if delta_days >= 0:
+        return f"{raw} ({delta_days} days ago)"
+    return f"{raw} (in {abs(delta_days)} days)"
+
+
 def _print_recall(entry) -> None:
     source = entry.source.strip() or entry.media_source.strip()
     print("📚 Robin Recall")
@@ -63,7 +79,7 @@ def _print_recall(entry) -> None:
     print(f"Type: {_recall_value(entry.entry_type)}")
     print(f"Source: {_recall_value(source)}")
     print(f"Creator: {_recall_value(entry.creator)}")
-    print(f"Saved on: {_recall_value(entry.date_added)}")
+    print(f"Saved on: {_saved_on_value(entry.date_added)}")
     print()
     print("Description:")
     print(_recall_value(entry.description))
