@@ -75,6 +75,11 @@ def test_parse_text_entry_with_attached_image_round_trip():
     assert parsed.body == "Filed this screenshot to wisdom."
 
 
+def test_parse_entry_rejects_colon_in_current_id():
+    with pytest.raises(ValueError, match="cannot contain colon"):
+        parse_entry("id: foo:bar\ndate_added: 2026-04-08\ndescription: Bad id.\n\nBody", "notes")
+
+
 def test_parse_entry_generates_legacy_fallback_id():
     parsed = parse_entry(
         "date_added: 2026-04-08\nsource: \ndescription: Legacy entry without explicit id.\ntags: [notes]\n\nSomething worth keeping.",
@@ -116,6 +121,22 @@ def test_serialize_entry_skips_empty_optional_fields():
     assert "media_source:" not in serialized
     assert "source:" not in serialized
     assert "tags:" not in serialized
+
+
+def test_serialize_entry_requires_description():
+    entry = build_text_entry(
+        topic="Notes",
+        content="Something worth keeping.",
+        description="",
+        source="",
+        note="",
+        tags=[],
+        date_added="2026-04-08",
+        entry_id="20260408-a1f3c9",
+    )
+
+    with pytest.raises(ValueError, match="description is required"):
+        serialize_entry(entry)
 
 
 def test_load_topic_entries_reports_malformed_entry_with_file_context(tmp_path):

@@ -65,6 +65,8 @@ def parse_frontmatter_and_body(text: str) -> tuple[dict, str]:
 def parse_entry(text: str, topic: str) -> Entry:
     frontmatter, body = parse_frontmatter_and_body(text)
     entry_id = str(frontmatter.get("id", "")).strip()
+    if ":" in entry_id:
+        raise ValueError("Entry id cannot contain colon characters.")
     date_added = str(frontmatter.get("date_added", "")).strip()
     if not date_added:
         raise ValueError("Entry is missing required date_added field.")

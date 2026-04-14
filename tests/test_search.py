@@ -118,6 +118,33 @@ def test_search_topic_filter_normalizes_user_input(robin_env, monkeypatch, capsy
     assert output["entries"][0]["topic"] == "ai-reasoning"
 
 
+def test_search_topic_only_text_heading_keeps_topic(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
+    topic_file.write_text(
+        serialize_entry(
+            build_text_entry(
+                topic="AI Reasoning",
+                content="Distinguish claims from evidence.",
+                description="Guidance on reasoning clearly.",
+                source="",
+                note="",
+                tags=["reasoning"],
+                date_added="2026-04-08",
+                entry_id="20260408-a1f3c9",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("sys.argv", ["search.py", "--topic", "AI Reasoning"])
+    search.main()
+    output = capsys.readouterr().out
+
+    assert "Topic 'AI Reasoning': 1 entries" in output
+    assert "Total: 1 entries" not in output
+
+
 def test_search_topic_filter_only_reads_target_topic_file(robin_env, monkeypatch, capsys):
     good_topic = robin_env["topics_dir"] / "ai-reasoning.md"
     good_topic.write_text(

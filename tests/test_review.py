@@ -539,6 +539,13 @@ def test_review_json_rejects_non_numeric_rating(robin_env, monkeypatch, capsys):
     assert output["error"] == "Rating must be a number between 1 and 5."
 
 
+def test_parse_timestamp_assumes_utc_for_naive_values():
+    parsed = parse_timestamp("2026-04-08T10:00:00")
+
+    assert parsed.tzinfo is not None
+    assert parsed.utcoffset() == timezone.utc.utcoffset(parsed)
+
+
 def test_review_json_rejects_invalid_index_timestamp(robin_env, monkeypatch, capsys):
     topic_file = robin_env["topics_dir"] / "ai-reasoning.md"
     topic_file.write_text(

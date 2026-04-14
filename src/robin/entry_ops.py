@@ -7,7 +7,7 @@ from pathlib import Path
 from robin.config import state_dir, topics_path
 from robin.index import ensure_entry_in_index
 from robin.models import Entry
-from robin.parser import RobinEntryParseError, SEPARATOR, load_all_entries, parse_entry, topic_slug, topic_to_filename
+from robin.parser import RobinEntryParseError, SEPARATOR, parse_entry, topic_slug, topic_to_filename
 from robin.serializer import serialize_entry
 
 
@@ -169,10 +169,6 @@ def move_entry(config: dict, explicit_state_dir: str | None, index: dict, entry_
         "from_filename": from_filename,
         "to_filename": to_filename,
     }
-
-
-def load_entries_for_dedupe(config: dict, explicit_state_dir: str | None) -> list[Entry]:
-    return load_all_entries(config, explicit_state_dir)
 
 
 def remove_new_media_if_present(explicit_state_dir: str | None, media_source: str) -> None:

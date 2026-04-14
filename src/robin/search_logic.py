@@ -19,10 +19,6 @@ def search_entries(entries: list[Entry], query: str) -> list[Entry]:
     ]
 
 
-def filter_by_topic(entries: list[Entry], topic: str) -> list[Entry]:
-    return [entry for entry in entries if entry.topic == topic]
-
-
 def filter_by_tags(entries: list[Entry], tags: list[str]) -> list[Entry]:
     normalized = {tag.lower() for tag in tags if tag.strip()}
     return [

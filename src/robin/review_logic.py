@@ -11,7 +11,10 @@ def now_iso() -> str:
 
 def parse_timestamp(value: str) -> datetime:
     normalized = value.replace("Z", "+00:00")
-    return datetime.fromisoformat(normalized)
+    timestamp = datetime.fromisoformat(normalized)
+    if timestamp.tzinfo is None:
+        return timestamp.replace(tzinfo=timezone.utc)
+    return timestamp
 
 
 def pick_best_candidate(index: dict, entries: list[Entry], config: dict) -> tuple[dict, Entry] | None:

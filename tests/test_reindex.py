@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from robin.index import rebuild_index
+from scripts import reindex
 from robin.parser import SEPARATOR, load_all_entries
 from robin.serializer import build_text_entry, serialize_entry
 
@@ -63,6 +64,19 @@ def test_reindex_preserves_legacy_review_state(robin_env):
     assert rebuilt["items"]["20260408-a1f3c9"]["rating"] == 2
     assert rebuilt["items"]["20260408-a1f3c9"]["times_surfaced"] == 4
     assert rebuilt["items"]["20260408-b7k2d1"]["rating"] == 5
+
+
+def test_reindex_text_progress_prints_before_scan(robin_env, monkeypatch, capsys):
+    def fake_load_all_entries(config, explicit_state_dir):
+        print("LOAD_CALLED")
+        return []
+
+    monkeypatch.setattr("robin.cli.load_all_entries", fake_load_all_entries)
+    monkeypatch.setattr("sys.argv", ["reindex.py"])
+    reindex.main()
+    output = capsys.readouterr().out
+
+    assert output.index("Scanning topic files...") < output.index("LOAD_CALLED")
 
 
 def test_reindex_preserves_awaiting_rating_state(robin_env):

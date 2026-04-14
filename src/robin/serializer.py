@@ -83,6 +83,8 @@ def build_media_entry(
 
 
 def serialize_entry(entry: Entry) -> str:
+    if not entry.description.strip():
+        raise ValueError("Entry description is required.")
     lines = [f"id: {entry.entry_id}", f"date_added: {entry.date_added}"]
     optional_fields = [
         ("entry_type", entry.entry_type if entry.entry_type != "text" else ""),

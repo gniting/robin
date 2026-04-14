@@ -12,7 +12,6 @@ from robin.entry_ops import (
     delete_entry,
     duplicate_candidates,
     duplicate_payload,
-    load_entries_for_dedupe,
     move_entry,
     remove_new_media_if_present,
 )
@@ -227,7 +226,7 @@ def add_main(argv: list[str] | None = None) -> None:
     _validate_serialized_entry(serialized_entry, as_json=args.json)
     if not args.allow_duplicate:
         try:
-            matches = duplicate_candidates(load_entries_for_dedupe(config, args.state_dir), entry)
+            matches = duplicate_candidates(load_all_entries(config, args.state_dir), entry)
         except RobinEntryParseError as exc:
             remove_new_media_if_present(args.state_dir, entry.media_source)
             _error(str(exc), as_json=args.json)
@@ -424,7 +423,7 @@ def search_main(argv: list[str] | None = None) -> None:
     elif args.query:
         entries = search_entries(entries, args.query)
         heading = f"Query '{args.query}': {len(entries)} results"
-    else:
+    elif not args.topic:
         heading = f"Total: {len(entries)} entries"
 
     index_items = index.get("items", {})
@@ -601,6 +600,8 @@ def reindex_main(argv: list[str] | None = None) -> None:
 
     config = load_config(args.state_dir)
     old_index = load_index(args.state_dir)
+    if not args.json:
+        print("Scanning topic files...")
     try:
         entries = load_all_entries(config, args.state_dir)
     except RobinEntryParseError as exc:
@@ -621,6 +622,5 @@ def reindex_main(argv: list[str] | None = None) -> None:
         }, indent=2))
         return
 
-    print("Scanning topic files...")
     print(f"Found {len(entries)} entries")
     print(f"✓ Index rebuilt: {len(new_index['items'])} items, {rated} rated, {len(new_index['items']) - rated} unrated")

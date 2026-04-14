@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from robin.config import LEGACY_SPLIT_LAYOUT_KEY, config_path, index_path, load_config, load_index, state_dir
+from robin.config import LEGACY_SPLIT_LAYOUT_KEY, config_path, index_path, load_config, load_index, save_index, state_dir
 from robin.cli import search_main
 
 
@@ -40,6 +40,13 @@ def test_load_config_rejects_legacy_split_layout_field(robin_env):
 
     with pytest.raises(SystemExit, match="old split-layout field for a separate content root"):
         load_config()
+
+
+def test_save_index_writes_atomically_and_removes_temp_file(robin_env):
+    save_index({"items": {"abc": {"rating": 4}}})
+
+    assert load_index()["items"]["abc"]["rating"] == 4
+    assert not index_path().with_suffix(index_path().suffix + ".tmp").exists()
 
 
 def test_load_index_invalid_json_exits_cleanly(robin_env):
