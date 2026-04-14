@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Plain SemVer version to release, for example 0.3.2"
+        required: true
+        type: string
+      release_notes:
+        description: "Markdown release notes"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark this release as a prerelease"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release ${{ inputs.version }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate version input
+        run: |
+          set -euo pipefail
+          if [[ ! "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must be plain SemVer, for example 0.3.2"
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check tag does not exist
+        run: |
+          set -euo pipefail
+          git fetch --tags origin
+          if git rev-parse -q --verify "refs/tags/${{ inputs.version }}" >/dev/null; then
+            echo "Tag ${{ inputs.version }} already exists."
+            exit 1
+          fi
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Update pyproject version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("pyproject.toml")
+          version = os.environ["RELEASE_VERSION"]
+          text = path.read_text(encoding="utf-8")
+          new_text, count = re.subn(
+              r'(?m)^version = "[^"]+"$',
+              f'version = "{version}"',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit("Expected exactly one project version field in pyproject.toml")
+          path.write_text(new_text, encoding="utf-8")
+          PY
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Commit version bump
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- pyproject.toml; then
+            echo "pyproject.toml already at version ${{ inputs.version }}; no version bump commit needed."
+          else
+            git add pyproject.toml
+            git commit -m "Bump version to ${{ inputs.version }}"
+            git push origin HEAD:master
+          fi
+
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+          git tag "${{ inputs.version }}"
+          git push origin "${{ inputs.version }}"
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
+          notes_file="$(mktemp)"
+          printf '%s\n' "$RELEASE_NOTES" > "$notes_file"
+          args=()
+          if [[ "${{ inputs.prerelease }}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${{ inputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --title "Robin ${{ inputs.version }}" \
+            --notes-file "$notes_file" \
+            "${args[@]}"
