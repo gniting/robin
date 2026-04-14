@@ -11,9 +11,13 @@ from robin.parser import topic_slug
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".svg"}
 
 
-def is_video_url(value: str) -> bool:
+def is_remote_reference(value: str) -> bool:
     parsed = urlparse(value)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def is_video_url(value: str) -> bool:
+    return is_remote_reference(value)
 
 
 def validate_image_path(value: str) -> Path:

@@ -16,6 +16,7 @@ def robin_env(tmp_path, monkeypatch):
     workspace = tmp_path / "workspace"
     state_dir = workspace / "data" / "robin"
     (state_dir / "topics").mkdir(parents=True)
+    (state_dir / "media").mkdir(parents=True)
 
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("ROBIN_STATE_DIR", raising=False)

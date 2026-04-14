@@ -9,6 +9,7 @@ from robin.config import load_config, load_index, save_index, topics_path
 from robin.doctor import run_doctor
 from robin.entry_ops import (
     EntryOperationError,
+    append_entry_to_file,
     delete_entry,
     duplicate_candidates,
     duplicate_payload,
@@ -91,14 +92,7 @@ def _add_to_topic(config: dict, explicit_state_dir: str | None, topic: str, entr
     base = topics_path(config, explicit_state_dir)
     base.mkdir(parents=True, exist_ok=True)
     filepath = base / topic_to_filename(topic)
-
-    if filepath.exists():
-        content = filepath.read_text(encoding="utf-8").rstrip()
-        out = content + SEPARATOR + entry_text
-    else:
-        out = entry_text
-
-    filepath.write_text(out + "\n", encoding="utf-8")
+    append_entry_to_file(filepath, entry_text)
     return filepath.name
 
 
@@ -515,10 +509,14 @@ def topics_main(argv: list[str] | None = None) -> None:
 
     total_entries = sum(topic["entries"] for topic in ordered_topics)
     print(f"{len(ordered_topics)} topics, {total_entries} total entries\n")
+    visual_cap = 10
     for topic in ordered_topics:
-        rated_visual = min(topic["rated"], 10)
-        unrated_visual = min(max(10 - rated_visual, 0), topic["unrated"])
+        rated_visual = min(topic["rated"], visual_cap)
+        unrated_visual = min(max(visual_cap - rated_visual, 0), topic["unrated"])
         stars = "★" * rated_visual + "☆" * unrated_visual
+        overflow = topic["entries"] - (rated_visual + unrated_visual)
+        if overflow > 0:
+            stars = f"{stars}+{overflow}"
         print(f"  {topic['topic']}")
         print(f"    {topic['entries']} entries  {stars}  {topic['rated']} rated / {topic['unrated']} unrated")
         print()

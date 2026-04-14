@@ -147,3 +147,37 @@ def test_entries_missing_id_fails_json(robin_env, monkeypatch, capsys):
 
     output = json.loads(capsys.readouterr().out)
     assert "not found" in output["error"]
+
+
+def test_entries_move_reports_missing_description_without_mutating_source(robin_env, monkeypatch, capsys):
+    topic_file = robin_env["topics_dir"] / "writing.md"
+    topic_file.write_text("id: 20260408-a1f3c9\ndate_added: 2026-04-08\n\nBody without description.\n", encoding="utf-8")
+    save_index(
+        {
+            "items": {
+                "20260408-a1f3c9": {
+                    "id": "20260408-a1f3c9",
+                    "topic": "writing",
+                    "date": "2026-04-08",
+                    "rating": None,
+                    "last_surfaced": None,
+                    "times_surfaced": 0,
+                    "_awaiting_rating": False,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["entries.py", "--move", "20260408-a1f3c9", "--topic", "AI Reasoning", "--json"])
+    try:
+        entries.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected SystemExit")
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["error"] == "Entry description is required."
+    assert topic_file.exists()
+    assert "20260408-a1f3c9" in topic_file.read_text(encoding="utf-8")
+    assert not (robin_env["topics_dir"] / "ai-reasoning.md").exists()

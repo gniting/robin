@@ -25,6 +25,7 @@ def _save_review_entry(robin_env, filename: str, entry) -> None:
                     "rating": None,
                     "last_surfaced": None,
                     "times_surfaced": 0,
+                    "_awaiting_rating": False,
                 }
             }
         }

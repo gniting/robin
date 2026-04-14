@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from robin.config import load_index, save_index
+from robin.parser import SEPARATOR
 from robin.serializer import build_media_entry, build_text_entry, serialize_entry
 from scripts import search, topics
 
@@ -143,6 +144,44 @@ def test_search_topic_only_text_heading_keeps_topic(robin_env, monkeypatch, caps
 
     assert "Topic 'AI Reasoning': 1 entries" in output
     assert "Total: 1 entries" not in output
+
+
+def test_topics_text_output_shows_star_overflow(robin_env, monkeypatch, capsys):
+    entries = [
+        build_text_entry(
+            topic="Writing",
+            content=f"Writing note {number}.",
+            description=f"Description for writing note {number}.",
+            source="",
+            note="",
+            tags=["writing"],
+            date_added="2026-04-08",
+            entry_id=f"20260408-note{number:02d}",
+        )
+        for number in range(11)
+    ]
+    topic_file = robin_env["topics_dir"] / "writing.md"
+    topic_file.write_text(SEPARATOR.join(serialize_entry(entry) for entry in entries) + "\n", encoding="utf-8")
+
+    index = load_index()
+    for number, entry in enumerate(entries):
+        index["items"][entry.entry_id] = {
+            "id": entry.entry_id,
+            "topic": "writing",
+            "date": entry.date_added,
+            "rating": 4 if number < 3 else None,
+            "last_surfaced": None,
+            "times_surfaced": 0,
+            "_awaiting_rating": False,
+        }
+    save_index(index)
+
+    monkeypatch.setattr("sys.argv", ["topics.py"])
+    topics.main()
+    output = capsys.readouterr().out
+
+    assert "★★★☆☆☆☆☆☆☆+1" in output
+    assert "3 rated / 8 unrated" in output
 
 
 def test_search_topic_filter_only_reads_target_topic_file(robin_env, monkeypatch, capsys):

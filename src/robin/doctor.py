@@ -3,9 +3,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import urlparse
-
 from robin.config import LEGACY_SPLIT_LAYOUT_KEY, config_path, index_path, media_path, state_dir, topics_path
+from robin.media import is_remote_reference
 from robin.parser import RobinEntryParseError, load_topic_entries
 from robin.review_logic import parse_timestamp
 
@@ -43,11 +42,6 @@ def _diag(
         topic=topic,
         media_source=media_source,
     )
-
-
-def _is_remote_reference(value: str) -> bool:
-    parsed = urlparse(value)
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 def _is_relative_to(path: Path, base: Path) -> bool:
@@ -149,7 +143,7 @@ def _check_media(
 
     for entry in entries:
         media_source = entry.media_source.strip()
-        if not media_source or _is_remote_reference(media_source):
+        if not media_source or is_remote_reference(media_source):
             continue
 
         media_file = (base / media_source).resolve()

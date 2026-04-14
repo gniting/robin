@@ -93,7 +93,18 @@ def _find_entry_matches(config: dict, explicit_state_dir: str | None, entry_id: 
         for chunk in _load_topic_chunks(filepath):
             if chunk.entry.entry_id == entry_id:
                 matches.append(chunk)
+                if len(matches) >= 2:
+                    return matches
     return matches
+
+
+def append_entry_to_file(filepath: Path, serialized: str) -> None:
+    if filepath.exists():
+        content = filepath.read_text(encoding="utf-8").rstrip()
+        out = content + SEPARATOR + serialized if content else serialized
+    else:
+        out = serialized
+    filepath.write_text(out + "\n", encoding="utf-8")
 
 
 def _write_chunks(filepath: Path, chunks: list[str]) -> None:
@@ -144,17 +155,15 @@ def move_entry(config: dict, explicit_state_dir: str | None, index: dict, entry_
     to_filename = topic_to_filename(topic)
 
     if match.entry.topic != dest_topic:
-        _remove_match(match)
         moved = replace(match.entry, topic=dest_topic)
         dest_path = topics_path(config, explicit_state_dir) / to_filename
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        serialized = serialize_entry(moved)
-        if dest_path.exists():
-            content = dest_path.read_text(encoding="utf-8").rstrip()
-            out = content + SEPARATOR + serialized if content else serialized
-        else:
-            out = serialized
-        dest_path.write_text(out + "\n", encoding="utf-8")
+        try:
+            serialized = serialize_entry(moved)
+        except ValueError as exc:
+            raise EntryOperationError(str(exc)) from exc
+        _remove_match(match)
+        append_entry_to_file(dest_path, serialized)
     else:
         moved = match.entry
 

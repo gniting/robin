@@ -40,7 +40,7 @@ def _codes(payload: dict) -> set[str]:
 
 
 def test_doctor_healthy_library_returns_ok(robin_env, monkeypatch, capsys):
-    robin_env["media_dir"].mkdir()
+    robin_env["media_dir"].mkdir(exist_ok=True)
     _write_entry(robin_env)
     index = load_index()
     index["items"]["20260408-a1f3c9"] = {
@@ -62,7 +62,7 @@ def test_doctor_healthy_library_returns_ok(robin_env, monkeypatch, capsys):
 
 
 def test_doctor_reports_malformed_topic_entry(robin_env, monkeypatch, capsys):
-    robin_env["media_dir"].mkdir()
+    robin_env["media_dir"].mkdir(exist_ok=True)
     (robin_env["topics_dir"] / "broken.md").write_text("date_added 2026-04-08\n\nBroken entry\n", encoding="utf-8")
 
     monkeypatch.setattr("sys.argv", ["doctor.py", "--json"])
@@ -73,7 +73,7 @@ def test_doctor_reports_malformed_topic_entry(robin_env, monkeypatch, capsys):
 
 
 def test_doctor_reports_duplicate_entry_ids(robin_env, monkeypatch, capsys):
-    robin_env["media_dir"].mkdir()
+    robin_env["media_dir"].mkdir(exist_ok=True)
     _write_entry(robin_env, "one.md", entry_id="20260408-sameid")
     _write_entry(robin_env, "two.md", entry_id="20260408-sameid")
 
@@ -85,7 +85,7 @@ def test_doctor_reports_duplicate_entry_ids(robin_env, monkeypatch, capsys):
 
 
 def test_doctor_reports_missing_local_media(robin_env, monkeypatch, capsys):
-    robin_env["media_dir"].mkdir()
+    robin_env["media_dir"].mkdir(exist_ok=True)
     _write_entry(robin_env, media_source="media/writing/missing.png")
     save_index(
         {
@@ -110,7 +110,7 @@ def test_doctor_reports_missing_local_media(robin_env, monkeypatch, capsys):
 
 
 def test_doctor_reports_index_drift_as_warning_only(robin_env, monkeypatch, capsys):
-    robin_env["media_dir"].mkdir()
+    robin_env["media_dir"].mkdir(exist_ok=True)
     _write_entry(robin_env)
     save_index(
         {
@@ -136,7 +136,7 @@ def test_doctor_reports_index_drift_as_warning_only(robin_env, monkeypatch, caps
 
 
 def test_doctor_reports_corrupt_review_index(robin_env, monkeypatch, capsys):
-    robin_env["media_dir"].mkdir()
+    robin_env["media_dir"].mkdir(exist_ok=True)
     _write_entry(robin_env)
     (robin_env["state_dir"] / "robin-review-index.json").write_text("{invalid json", encoding="utf-8")
 
@@ -148,7 +148,7 @@ def test_doctor_reports_corrupt_review_index(robin_env, monkeypatch, capsys):
 
 
 def test_doctor_script_json_smoke(robin_env):
-    robin_env["media_dir"].mkdir()
+    robin_env["media_dir"].mkdir(exist_ok=True)
     proc = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "doctor.py"), "--state-dir", str(robin_env["state_dir"]), "--json"],
         cwd=ROOT,
