@@ -6,6 +6,7 @@ from pathlib import Path
 
 from robin.config import state_dir, topics_path
 from robin.index import ensure_entry_in_index
+from robin.media import is_remote_reference
 from robin.models import Entry
 from robin.parser import RobinEntryParseError, SEPARATOR, parse_entry, topic_slug, topic_to_filename
 from robin.serializer import serialize_entry
@@ -181,7 +182,8 @@ def move_entry(config: dict, explicit_state_dir: str | None, index: dict, entry_
 
 
 def remove_new_media_if_present(explicit_state_dir: str | None, media_source: str) -> None:
-    if not media_source.strip() or media_source.startswith(("http://", "https://")):
+    media_source = media_source.strip()
+    if not media_source or is_remote_reference(media_source):
         return
     media_path = (state_dir(explicit_state_dir) / media_source).resolve()
     try:

@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from robin.config import LEGACY_SPLIT_LAYOUT_KEY, config_path, index_path, media_path, state_dir, topics_path
+from robin.index import is_legacy_key
 from robin.media import is_remote_reference
 from robin.parser import RobinEntryParseError, load_topic_entries
 from robin.review_logic import parse_timestamp
@@ -236,11 +237,15 @@ def _check_index(
             )
             continue
         if entry_id not in entry_ids:
+            if is_legacy_key(entry_id):
+                message = f"Legacy-format review item {entry_id}; run robin-reindex to migrate review history."
+            else:
+                message = f"Review index item {entry_id} has no matching topic entry."
             diagnostics.append(
                 _diag(
                     "warning",
                     "orphan_index_item",
-                    f"Review index item {entry_id} has no matching topic entry.",
+                    message,
                     path=path,
                     entry_id=entry_id,
                 )

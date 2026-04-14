@@ -135,6 +135,33 @@ def test_doctor_reports_index_drift_as_warning_only(robin_env, monkeypatch, caps
     assert {"orphan_index_item", "missing_index_item"}.issubset(_codes(payload))
 
 
+def test_doctor_reports_legacy_orphan_index_item_with_reindex_guidance(robin_env, monkeypatch, capsys):
+    robin_env["media_dir"].mkdir(exist_ok=True)
+    save_index(
+        {
+            "items": {
+                "quotes:2026-01-15:001": {
+                    "id": "quotes:2026-01-15:001",
+                    "topic": "quotes",
+                    "date": "2026-01-15",
+                    "rating": 4,
+                    "last_surfaced": None,
+                    "times_surfaced": 1,
+                }
+            }
+        }
+    )
+
+    monkeypatch.setattr("sys.argv", ["doctor.py", "--json"])
+    code, payload = _doctor_json(capsys)
+
+    assert code == 0
+    diagnostic = next(item for item in payload["diagnostics"] if item["code"] == "orphan_index_item")
+    assert diagnostic["entry_id"] == "quotes:2026-01-15:001"
+    assert "Legacy-format review item" in diagnostic["message"]
+    assert "run robin-reindex" in diagnostic["message"]
+
+
 def test_doctor_reports_corrupt_review_index(robin_env, monkeypatch, capsys):
     robin_env["media_dir"].mkdir(exist_ok=True)
     _write_entry(robin_env)

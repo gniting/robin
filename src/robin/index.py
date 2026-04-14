@@ -9,7 +9,7 @@ def _legacy_key(topic: str, date_added: str, seq: int) -> str:
     return f"{topic}:{date_added}:{seq:03d}"
 
 
-def _is_legacy_key(key: str) -> bool:
+def is_legacy_key(key: str) -> bool:
     parts = key.rsplit(":", 2)
     if len(parts) != 3:
         return False
@@ -23,7 +23,7 @@ def rebuild_index(entries: Iterable[Entry], old_index: dict) -> dict:
     legacy_items: dict[str, dict] = {}
     id_items: dict[str, dict] = {}
     for key, value in old_items.items():
-        if _is_legacy_key(key):
+        if is_legacy_key(key):
             legacy_items[key] = value
         else:
             id_items[key] = value

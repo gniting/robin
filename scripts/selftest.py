@@ -86,6 +86,10 @@ def _require_keys(payload: dict, keys: set[str]) -> None:
         raise SelftestFailure(f"Missing keys: {', '.join(missing)}")
 
 
+def _fail_selftest(message: str) -> None:
+    raise SelftestFailure(message)
+
+
 def _write_config(state_dir: Path) -> None:
     (state_dir / "topics").mkdir(parents=True, exist_ok=True)
     (state_dir / "media").mkdir(parents=True, exist_ok=True)
@@ -103,11 +107,13 @@ def _check_setup(state_dir: Path) -> None:
     if not config_path.exists():
         raise SelftestFailure(f"Missing {config_path}")
     try:
-        json.loads(config_path.read_text(encoding="utf-8"))
+        config = json.loads(config_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise SelftestFailure(f"{config_path} is invalid JSON: {exc}") from exc
-    for dirname in ("topics", "media"):
-        path = state_dir / dirname
+    if not isinstance(config, dict):
+        raise SelftestFailure(f"{config_path} must contain a JSON object")
+    for dirname in (config.get("topics_dir", "topics"), config.get("media_dir", "media")):
+        path = state_dir / str(dirname)
         if not path.is_dir():
             raise SelftestFailure(f"Missing directory: {path}")
 
@@ -373,7 +379,7 @@ def _run_full_selftest(reporter: Reporter, state_dir: Path) -> None:
     if isinstance(added, dict):
         reporter.check("search finds added entry", lambda: _check_search_finds_entry(state_dir, added["id"]))
     else:
-        reporter.check("search finds added entry", lambda: (_ for _ in ()).throw(SelftestFailure("add step failed")))
+        reporter.check("search finds added entry", lambda: _fail_selftest("add step failed"))
     reporter.check("review surfaces an item and rate updates state", lambda: _check_review_and_rate(state_dir))
     reporter.check("duplicate text entry is rejected by default", lambda: _check_duplicate_rejected(state_dir))
     reporter.check("duplicate text entry is accepted with override", lambda: _check_duplicate_allowed(state_dir))

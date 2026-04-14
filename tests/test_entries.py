@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from robin.config import load_index, save_index
+from robin.entry_ops import remove_new_media_if_present
 from robin.parser import SEPARATOR
 from robin.serializer import build_text_entry, serialize_entry
 from scripts import entries
@@ -181,3 +182,9 @@ def test_entries_move_reports_missing_description_without_mutating_source(robin_
     assert topic_file.exists()
     assert "20260408-a1f3c9" in topic_file.read_text(encoding="utf-8")
     assert not (robin_env["topics_dir"] / "ai-reasoning.md").exists()
+
+
+def test_remove_new_media_ignores_remote_references(robin_env):
+    remove_new_media_if_present(str(robin_env["state_dir"]), "https://example.com/image.png")
+
+    assert robin_env["state_dir"].exists()
