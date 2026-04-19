@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "robin-commonplace"
-version = "0.3.1"
+version = "0.3.2"
 description = "A digital commonplace book for AI agents — collect, curate, and periodically review personal knowledge."
 readme = "README.md"
 license = {text = "MIT"}
