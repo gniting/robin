@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 
 from robin.config import load_index, save_index
-from robin.entry_ops import remove_new_media_if_present
-from robin.parser import SEPARATOR
-from robin.serializer import build_text_entry, serialize_entry
+from robin.entry_ops import append_entry_to_file, remove_new_media_if_present
+from robin.parser import SEPARATOR, load_topic_entries
+from robin.serializer import build_media_entry, build_text_entry, serialize_entry
 from scripts import entries
 
 
@@ -26,6 +26,24 @@ def _entry(entry_id: str, topic: str = "Writing", *, media_source: str = ""):
         tags=["writing"],
         date_added="2026-04-08",
         media_source=media_source,
+        entry_id=entry_id,
+    )
+
+
+def _bodyless_media_entry(entry_id: str, topic: str = "Artemis"):
+    return build_media_entry(
+        topic=topic,
+        media_kind="image",
+        media_source=f"media/{topic.lower()}/{entry_id}.jpg",
+        description=f"Description for image {entry_id}.",
+        creator="NASA",
+        published_at="2026",
+        summary="A body-less media entry used to verify parser round-trips.",
+        content="",
+        source="",
+        note="",
+        tags=["image"],
+        date_added="2026-04-08",
         entry_id=entry_id,
     )
 
@@ -188,3 +206,54 @@ def test_remove_new_media_ignores_remote_references(robin_env):
     remove_new_media_if_present(str(robin_env["state_dir"]), "https://example.com/image.png")
 
     assert robin_env["state_dir"].exists()
+
+
+def test_entries_move_bodyless_media_entry(robin_env, monkeypatch, capsys):
+    item = _bodyless_media_entry("20260408-img001")
+    _write_entries(robin_env, "artemis.md", [item])
+    save_index({"items": {item.entry_id: {"id": item.entry_id, "topic": "artemis", "date": item.date_added, "rating": None, "last_surfaced": None, "times_surfaced": 0}}})
+
+    monkeypatch.setattr("sys.argv", ["entries.py", "--move", item.entry_id, "--topic", "Space", "--json"])
+    try:
+        entries.main()
+    except SystemExit as exc:
+        assert exc.code == 0
+
+    output = json.loads(capsys.readouterr().out)
+    moved_entries = load_topic_entries(robin_env["topics_dir"] / "space.md")
+
+    assert output["status"] == "moved"
+    assert output["to_topic"] == "space"
+    assert moved_entries[0].entry_id == item.entry_id
+    assert moved_entries[0].body == ""
+
+
+def test_entries_delete_bodyless_media_entry(robin_env, monkeypatch, capsys):
+    item = _bodyless_media_entry("20260408-img001")
+    _write_entries(robin_env, "artemis.md", [item])
+    save_index({"items": {item.entry_id: {"id": item.entry_id, "topic": "artemis", "date": item.date_added, "rating": None, "last_surfaced": None, "times_surfaced": 0}}})
+
+    monkeypatch.setattr("sys.argv", ["entries.py", "--delete", item.entry_id, "--json"])
+    try:
+        entries.main()
+    except SystemExit as exc:
+        assert exc.code == 0
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["status"] == "deleted"
+    assert not (robin_env["topics_dir"] / "artemis.md").exists()
+
+
+def test_append_entry_to_file_preserves_existing_bodyless_media_entry(robin_env):
+    first = _bodyless_media_entry("20260408-img001")
+    second = _entry("20260408-text01")
+    topic_file = robin_env["topics_dir"] / "artemis.md"
+    topic_file.write_text(serialize_entry(first) + "\n", encoding="utf-8")
+
+    append_entry_to_file(topic_file, serialize_entry(second))
+    loaded = load_topic_entries(topic_file)
+
+    assert [entry.entry_id for entry in loaded] == [first.entry_id, second.entry_id]
+    assert loaded[0].body == ""
+    assert loaded[1].body == second.body

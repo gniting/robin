@@ -101,5 +101,6 @@ def serialize_entry(entry: Entry) -> str:
             lines.append(f"{key}: {value}")
     if entry.tags:
         lines.append(f"tags: [{', '.join(entry.tags)}]")
+    # The blank line is required even when the body is empty; it terminates frontmatter.
     lines.extend(["", entry.body.strip()])
     return "\n".join(lines)

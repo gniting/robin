@@ -79,9 +79,9 @@ def _load_topic_chunks(filepath: Path) -> list[EntryMatch]:
     for chunk_index, chunk in enumerate(content.split(SEPARATOR), start=1):
         if not chunk.strip():
             continue
-        raw_chunk = chunk.strip()
+        raw_chunk = chunk.lstrip()
         try:
-            entry = parse_entry(raw_chunk.lstrip(), filepath.stem)
+            entry = parse_entry(raw_chunk, filepath.stem)
         except ValueError as exc:
             raise RobinEntryParseError(filepath, chunk_index, str(exc)) from exc
         matches.append(EntryMatch(entry=entry, filepath=filepath, chunk_index=chunk_index, raw_chunk=raw_chunk))
@@ -101,8 +101,10 @@ def _find_entry_matches(config: dict, explicit_state_dir: str | None, entry_id: 
 
 def append_entry_to_file(filepath: Path, serialized: str) -> None:
     if filepath.exists():
-        content = filepath.read_text(encoding="utf-8").rstrip()
-        out = content + SEPARATOR + serialized if content else serialized
+        content = filepath.read_text(encoding="utf-8")
+        if content.endswith("\n"):
+            content = content[:-1]
+        out = content + SEPARATOR + serialized if content.strip() else serialized
     else:
         out = serialized
     filepath.write_text(out + "\n", encoding="utf-8")

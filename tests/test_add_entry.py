@@ -142,6 +142,101 @@ def test_add_text_entry_can_attach_local_image(robin_env, monkeypatch, capsys):
     assert "summary:" not in content
 
 
+def test_add_text_entry_rejects_description_only(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Wisdom",
+            "--description",
+            "Context alone should not create a text entry without a payload.",
+            "--json",
+        ],
+    )
+
+    try:
+        add_entry.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("Expected SystemExit for description-only text entry")
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["error"] == "Text entries require --content, --note, --source, or --media-path."
+
+
+def test_add_text_entry_accepts_note_only(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Wisdom",
+            "--description",
+            "A note-only entry with enough context to revisit later.",
+            "--note",
+            "Remember to test the boundary condition.",
+            "--json",
+        ],
+    )
+
+    add_entry.main()
+    output = json.loads(capsys.readouterr().out)
+    content = (robin_env["topics_dir"] / "wisdom.md").read_text(encoding="utf-8")
+
+    assert output["entry_type"] == "text"
+    assert "**Robin note:** Remember to test the boundary condition." in content
+
+
+def test_add_text_entry_accepts_source_only(robin_env, monkeypatch, capsys):
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Reading",
+            "--description",
+            "A source-only bookmark with enough context to revisit later.",
+            "--source",
+            "https://example.com/bookmark",
+            "--json",
+        ],
+    )
+
+    add_entry.main()
+    output = json.loads(capsys.readouterr().out)
+    content = (robin_env["topics_dir"] / "reading.md").read_text(encoding="utf-8")
+
+    assert output["entry_type"] == "text"
+    assert "source: https://example.com/bookmark" in content
+
+
+def test_add_text_entry_accepts_media_path_without_content(robin_env, monkeypatch, capsys):
+    image_path = robin_env["tmp_path"] / "context.png"
+    image_path.write_bytes(b"context-image")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "add_entry.py",
+            "--topic",
+            "Wisdom",
+            "--description",
+            "A text entry whose payload is an attached image.",
+            "--media-path",
+            str(image_path),
+            "--json",
+        ],
+    )
+
+    add_entry.main()
+    output = json.loads(capsys.readouterr().out)
+    copied = robin_env["state_dir"] / output["media_source"]
+
+    assert output["entry_type"] == "text"
+    assert copied.exists()
+
+
 def test_add_text_entry_rejects_media_url(robin_env, monkeypatch, capsys):
     monkeypatch.setattr(
         "sys.argv",

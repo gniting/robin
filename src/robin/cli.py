@@ -142,8 +142,16 @@ def add_main(argv: list[str] | None = None) -> None:
     entry_type = args.entry_type
 
     if entry_type == "text":
-        if not args.content.strip():
-            _error("Text entries require --content.", as_json=args.json)
+        has_text_payload = any(
+            [
+                args.content.strip(),
+                (args.note or "").strip(),
+                (args.source or "").strip(),
+                (args.media_path or "").strip(),
+            ]
+        )
+        if not has_text_payload:
+            _error("Text entries require --content, --note, --source, or --media-path.", as_json=args.json)
         if args.media_url:
             _error("Text entries do not accept --media-url. Attach local images with --media-path.", as_json=args.json)
         entry_id = generate_entry_id(date_added) if args.media_path else None

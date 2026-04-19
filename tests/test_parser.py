@@ -54,6 +54,37 @@ def test_parse_media_entry_round_trip():
     assert parsed.summary.startswith("An excerpt")
 
 
+def test_bodyless_media_entry_round_trip_and_load_topic_entries(tmp_path):
+    entry = build_media_entry(
+        topic="Artemis",
+        media_kind="image",
+        media_source="media/artemis/20260419-a1f3c9.jpg",
+        description="A NASA image of Earth from the Artemis spacecraft.",
+        creator="NASA",
+        published_at="2026",
+        summary="Earth photographed from the spacecraft with no crew visible.",
+        content="",
+        source="",
+        note="",
+        tags=["artemis", "space"],
+        date_added="2026-04-19",
+        entry_id="20260419-a1f3c9",
+    )
+    serialized = serialize_entry(entry)
+
+    parsed = parse_entry(serialized, "artemis")
+    assert parsed.body == ""
+    assert parsed.entry_type == "image"
+
+    topic_file = tmp_path / "artemis.md"
+    topic_file.write_text(serialized + "\n", encoding="utf-8")
+    loaded = load_topic_entries(topic_file)
+
+    assert len(loaded) == 1
+    assert loaded[0].entry_id == "20260419-a1f3c9"
+    assert loaded[0].body == ""
+
+
 def test_parse_text_entry_with_attached_image_round_trip():
     entry = build_text_entry(
         topic="Wisdom",

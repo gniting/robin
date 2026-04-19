@@ -136,7 +136,7 @@ Examples:
 - `Song Lyrics` -> `song-lyrics.md`
 - `AI/ML` -> `ai-ml.md`
 
-Entries are separated by `***`. Each entry has frontmatter, then a blank line, then the body.
+Entries are separated by `***`. Each entry has frontmatter, then a blank line, then optional body text.
 
 Text entries may omit `entry_type`; omitted `entry_type` is parsed as `text`.
 
@@ -207,6 +207,7 @@ Field semantics:
 Robin accepts media with these rules:
 
 - local image files: accepted and copied into `media/<topic-slug>/`; Robin creates the topic subdirectory automatically
+- text entries require at least one payload: `content`, `note`, `source`, or local image attachment with `--media-path`
 - text entries may attach a local image with `--media-path`; Robin keeps `entry_type` as `text`, sets `media_source`, and does not require media metadata
 - remote image URLs: not supported directly by Robin's CLI
 - video URLs: accepted and stored by reference

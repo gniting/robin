@@ -222,8 +222,8 @@ If the agent notices a Robin bug while using the skill, it should report the iss
 ### Entry-Type Rules
 
 - `text`
-  - requires: `topic`, `content`, `description`
-  - optional: local image attachment with `--media-path`, `source`, `note`, `tags`
+  - requires: `topic`, `description`, and at least one payload: `content`, `note`, `source`, or local image attachment with `--media-path`
+  - optional: `tags`
   - behavior: when `--media-path` is provided, Robin copies the image into `media/<topic-slug>/`, sets `media_source`, keeps `entry_type` as `text`, and does not require `creator`, `published_at`, or `summary`
   - rejection: text entries do not accept `--media-url`
 - `image`
@@ -435,7 +435,7 @@ Exit status on failure:
 
 ## Topic File Format
 
-Entries are separated by `***`. Each entry is a frontmatter block followed by a blank line and then the body text.
+Entries are separated by `***`. Each entry is a frontmatter block followed by a blank line and then optional body text.
 
 Text entries may omit `entry_type`; omitted `entry_type` is parsed as `text`.
 
@@ -459,8 +459,8 @@ Topic filename: lowercase topic slug with non-alphanumeric characters normalized
 Frontmatter parsing rules:
 
 - keys are matched case-insensitively
-- a blank line must separate frontmatter from body
-- body starts at the first blank line
+- a blank line must terminate frontmatter, even when the body is empty
+- body starts after the first blank line and may be empty
 
 ## Review Index Schema
 
@@ -495,7 +495,7 @@ Review settings such as `min_items_before_review` and `review_cooldown_days` liv
 - If `robin-review-index.json` is missing, Robin can rebuild review state as entries are used. If it is corrupted, back it up or recreate it as `{"items": {}}`, then run `python3 scripts/reindex.py --state-dir <state-dir> --json` to rebuild from topic files.
 - If library health is uncertain, run `python3 scripts/doctor.py --state-dir <state-dir> --json` for a read-only diagnostic report.
 - Use `python3 scripts/entries.py --state-dir <state-dir> --move <id> --topic <topic>` to move entries and `python3 scripts/entries.py --state-dir <state-dir> --delete <id>` to delete entries. Delete keeps copied media files.
-- Manual topic-file edits must keep valid frontmatter, include a blank line before the body, and avoid standalone `***` lines in body content. Numbered lists are safe after the blank line.
+- Manual topic-file edits must keep valid frontmatter, include the blank line that terminates frontmatter, and avoid standalone `***` lines in body content. Numbered lists are safe after the blank line.
 - Telegram: Sending GIFs via `MEDIA:/path/file.gif` converts them to static photos. To preserve animation, GIFs must be sent as documents, not photos. The gateway may require a document wrapper or alternate approach for animated GIF delivery.
 
 ### Image Filing from Telegram / Chat Platforms
@@ -514,5 +514,5 @@ When a user sends an image to file to Robin via a messaging platform:
 When filing many items at once (e.g. a batch of quotes):
 1. Batch `add_entry.py` calls together when practical; each call performs deterministic duplicate checks before saving.
 2. Use `--allow-duplicate` only for entries the user intentionally wants saved as another copy.
-3. Prefer the CLI over manual Markdown edits. If manually editing topic files, validate that each entry has frontmatter, a blank line, body text, and no standalone `***` line.
+3. Prefer the CLI over manual Markdown edits. If manually editing topic files, validate that each entry has frontmatter, the required blank line after frontmatter, and no standalone `***` line.
 4. If a topic file has a frontmatter parse error, `add_entry.py` and `search.py` can fail globally until the file is fixed.
