@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+from robin.files import atomic_write_text
+
 LEGACY_SPLIT_LAYOUT_KEY = "vault" + "_path"
 
 
@@ -75,9 +77,4 @@ def load_index(explicit_state_dir: str | None = None) -> dict:
 
 def save_index(index: dict, explicit_state_dir: str | None = None) -> None:
     path = index_path(explicit_state_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    with tmp_path.open("w", encoding="utf-8") as f:
-        json.dump(index, f, indent=2, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp_path, path)
+    atomic_write_text(path, json.dumps(index, indent=2, sort_keys=True) + "\n")

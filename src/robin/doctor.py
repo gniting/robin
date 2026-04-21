@@ -9,6 +9,9 @@ from robin.media import is_remote_reference
 from robin.parser import RobinEntryParseError, load_topic_entries
 from robin.review_logic import parse_timestamp
 
+MAX_TOPIC_ENTRIES = 100
+MAX_TOPIC_BYTES = 1024 * 1024
+
 
 @dataclass(slots=True)
 class Diagnostic:
@@ -107,11 +110,32 @@ def _load_entries(config: dict, explicit_state_dir: str | None, diagnostics: lis
     ids_seen: dict[str, Path] = {}
     duplicate_ids: set[str] = set()
     for filepath in sorted(base.glob("*.md")):
+        size = filepath.stat().st_size
+        if size > MAX_TOPIC_BYTES:
+            diagnostics.append(
+                _diag(
+                    "warning",
+                    "large_topic_file",
+                    f"Topic file is {size} bytes; consider splitting very large topic files.",
+                    path=filepath,
+                    topic=filepath.stem,
+                )
+            )
         try:
             topic_entries = load_topic_entries(filepath)
         except RobinEntryParseError as exc:
             diagnostics.append(_diag("error", "invalid_topic_entry", str(exc), path=filepath))
             continue
+        if len(topic_entries) > MAX_TOPIC_ENTRIES:
+            diagnostics.append(
+                _diag(
+                    "warning",
+                    "large_topic_entry_count",
+                    f"Topic file contains {len(topic_entries)} entries; consider splitting very large topic files.",
+                    path=filepath,
+                    topic=filepath.stem,
+                )
+            )
         entries.extend(topic_entries)
         for entry in topic_entries:
             previous_path = ids_seen.get(entry.entry_id)

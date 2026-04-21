@@ -11,13 +11,13 @@ from robin.entry_ops import (
     EntryOperationError,
     append_entry_to_file,
     delete_entry,
-    duplicate_candidates,
+    find_duplicate_candidates,
     duplicate_payload,
     move_entry,
     remove_new_media_if_present,
 )
 from robin.index import ensure_entry_in_index, rebuild_index
-from robin.media import copy_image_to_vault, is_video_url
+from robin.media import copy_image_to_media, is_video_url
 from robin.parser import RobinEntryParseError, SEPARATOR, load_all_entries, load_topic_entries, topic_slug, topic_to_filename
 from robin.review_logic import mark_surfaced, pick_best_candidate, rate_item
 from robin.search_logic import filter_by_tags, search_entries
@@ -158,7 +158,7 @@ def add_main(argv: list[str] | None = None) -> None:
         media_source = ""
         if args.media_path and entry_id:
             try:
-                media_source = copy_image_to_vault(config, args.state_dir, topic, entry_id, args.media_path)
+                media_source = copy_image_to_media(config, args.state_dir, topic, entry_id, args.media_path)
             except ValueError as exc:
                 _error(str(exc), as_json=args.json)
             except OSError as exc:
@@ -194,7 +194,7 @@ def add_main(argv: list[str] | None = None) -> None:
             if args.media_url:
                 _error("Image entries do not accept --media-url.", as_json=args.json)
             try:
-                media_source = copy_image_to_vault(config, args.state_dir, topic, entry_id, args.media_path)
+                media_source = copy_image_to_media(config, args.state_dir, topic, entry_id, args.media_path)
             except ValueError as exc:
                 _error(str(exc), as_json=args.json)
             except OSError as exc:
@@ -228,7 +228,7 @@ def add_main(argv: list[str] | None = None) -> None:
     _validate_serialized_entry(serialized_entry, as_json=args.json)
     if not args.allow_duplicate:
         try:
-            matches = duplicate_candidates(load_all_entries(config, args.state_dir), entry)
+            matches = find_duplicate_candidates(config, args.state_dir, entry)
         except RobinEntryParseError as exc:
             remove_new_media_if_present(args.state_dir, entry.media_source)
             _error(str(exc), as_json=args.json)
@@ -415,6 +415,7 @@ def search_main(argv: list[str] | None = None) -> None:
             entries = load_all_entries(config, args.state_dir)
         except RobinEntryParseError as exc:
             _error(str(exc), as_json=args.json)
+        heading = f"Total: {len(entries)} entries"
 
     if args.tags:
         tags = [tag.strip() for tag in args.tags.split(",") if tag.strip()]
@@ -425,8 +426,6 @@ def search_main(argv: list[str] | None = None) -> None:
     elif args.query:
         entries = search_entries(entries, args.query)
         heading = f"Query '{args.query}': {len(entries)} results"
-    elif not args.topic:
-        heading = f"Total: {len(entries)} entries"
 
     index_items = index.get("items", {})
     if args.json:

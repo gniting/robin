@@ -4,17 +4,17 @@ import json
 
 from robin.config import load_index, save_index
 from robin.entry_ops import append_entry_to_file, remove_new_media_if_present
+from robin.files import atomic_write_text
+from robin.media import copy_image_to_media, copy_image_to_vault
 from robin.parser import SEPARATOR, load_topic_entries
 from robin.serializer import build_media_entry, build_text_entry, serialize_entry
 from scripts import entries
-
 
 def _write_entries(robin_env, filename: str, items: list) -> None:
     (robin_env["topics_dir"] / filename).write_text(
         SEPARATOR.join(serialize_entry(item) for item in items) + "\n",
         encoding="utf-8",
     )
-
 
 def _entry(entry_id: str, topic: str = "Writing", *, media_source: str = ""):
     return build_text_entry(
@@ -28,7 +28,6 @@ def _entry(entry_id: str, topic: str = "Writing", *, media_source: str = ""):
         media_source=media_source,
         entry_id=entry_id,
     )
-
 
 def _bodyless_media_entry(entry_id: str, topic: str = "Artemis"):
     return build_media_entry(
@@ -46,7 +45,6 @@ def _bodyless_media_entry(entry_id: str, topic: str = "Artemis"):
         date_added="2026-04-08",
         entry_id=entry_id,
     )
-
 
 def test_entries_delete_removes_entry_and_index(robin_env, monkeypatch, capsys):
     first = _entry("20260408-a1f3c9")
@@ -77,7 +75,6 @@ def test_entries_delete_removes_entry_and_index(robin_env, monkeypatch, capsys):
     assert first.entry_id not in index["items"]
     assert second.entry_id in index["items"]
 
-
 def test_entries_delete_removes_empty_topic_file_and_keeps_media(robin_env, monkeypatch, capsys):
     media = robin_env["state_dir"] / "media" / "writing" / "20260408-a1f3c9.png"
     media.parent.mkdir(parents=True)
@@ -96,7 +93,6 @@ def test_entries_delete_removes_empty_topic_file_and_keeps_media(robin_env, monk
     assert output["status"] == "deleted"
     assert not (robin_env["topics_dir"] / "writing.md").exists()
     assert media.exists()
-
 
 def test_entries_move_preserves_entry_and_index_state(robin_env, monkeypatch, capsys):
     item = _entry("20260408-a1f3c9")
@@ -122,7 +118,6 @@ def test_entries_move_preserves_entry_and_index_state(robin_env, monkeypatch, ca
     assert index["items"][item.entry_id]["rating"] == 5
     assert index["items"][item.entry_id]["times_surfaced"] == 2
 
-
 def test_entries_move_requires_topic(robin_env, monkeypatch, capsys):
     item = _entry("20260408-a1f3c9")
     _write_entries(robin_env, "writing.md", [item])
@@ -137,7 +132,6 @@ def test_entries_move_requires_topic(robin_env, monkeypatch, capsys):
 
     output = json.loads(capsys.readouterr().out)
     assert output["error"] == "--move requires --topic."
-
 
 def test_entries_move_rejects_invalid_topic(robin_env, monkeypatch, capsys):
     item = _entry("20260408-a1f3c9")
@@ -154,7 +148,6 @@ def test_entries_move_rejects_invalid_topic(robin_env, monkeypatch, capsys):
     output = json.loads(capsys.readouterr().out)
     assert "valid filename" in output["error"]
 
-
 def test_entries_missing_id_fails_json(robin_env, monkeypatch, capsys):
     monkeypatch.setattr("sys.argv", ["entries.py", "--delete", "missing", "--json"])
     try:
@@ -166,7 +159,6 @@ def test_entries_missing_id_fails_json(robin_env, monkeypatch, capsys):
 
     output = json.loads(capsys.readouterr().out)
     assert "not found" in output["error"]
-
 
 def test_entries_move_reports_missing_description_without_mutating_source(robin_env, monkeypatch, capsys):
     topic_file = robin_env["topics_dir"] / "writing.md"
@@ -201,12 +193,10 @@ def test_entries_move_reports_missing_description_without_mutating_source(robin_
     assert "20260408-a1f3c9" in topic_file.read_text(encoding="utf-8")
     assert not (robin_env["topics_dir"] / "ai-reasoning.md").exists()
 
-
 def test_remove_new_media_ignores_remote_references(robin_env):
     remove_new_media_if_present(str(robin_env["state_dir"]), "https://example.com/image.png")
 
     assert robin_env["state_dir"].exists()
-
 
 def test_entries_move_bodyless_media_entry(robin_env, monkeypatch, capsys):
     item = _bodyless_media_entry("20260408-img001")
@@ -227,7 +217,6 @@ def test_entries_move_bodyless_media_entry(robin_env, monkeypatch, capsys):
     assert moved_entries[0].entry_id == item.entry_id
     assert moved_entries[0].body == ""
 
-
 def test_entries_delete_bodyless_media_entry(robin_env, monkeypatch, capsys):
     item = _bodyless_media_entry("20260408-img001")
     _write_entries(robin_env, "artemis.md", [item])
@@ -244,7 +233,6 @@ def test_entries_delete_bodyless_media_entry(robin_env, monkeypatch, capsys):
     assert output["status"] == "deleted"
     assert not (robin_env["topics_dir"] / "artemis.md").exists()
 
-
 def test_append_entry_to_file_preserves_existing_bodyless_media_entry(robin_env):
     first = _bodyless_media_entry("20260408-img001")
     second = _entry("20260408-text01")
@@ -257,3 +245,47 @@ def test_append_entry_to_file_preserves_existing_bodyless_media_entry(robin_env)
     assert [entry.entry_id for entry in loaded] == [first.entry_id, second.entry_id]
     assert loaded[0].body == ""
     assert loaded[1].body == second.body
+
+def test_append_entry_to_file_uses_atomic_write_without_tmp_leftover(robin_env):
+    first = _entry("20260408-first")
+    second = _entry("20260408-second")
+    topic_file = robin_env["topics_dir"] / "writing.md"
+    append_entry_to_file(topic_file, serialize_entry(first))
+
+    append_entry_to_file(topic_file, serialize_entry(second))
+    loaded = load_topic_entries(topic_file)
+
+    assert [entry.entry_id for entry in loaded] == [first.entry_id, second.entry_id]
+    assert not topic_file.with_name(f"{topic_file.name}.tmp").exists()
+
+def test_write_chunks_uses_atomic_write_without_tmp_leftover(robin_env, monkeypatch, capsys):
+    item = _entry("20260408-a1f3c9")
+    _write_entries(robin_env, "writing.md", [item])
+    topic_file = robin_env["topics_dir"] / "writing.md"
+
+    monkeypatch.setattr("sys.argv", ["entries.py", "--delete", item.entry_id, "--json"])
+    try:
+        entries.main()
+    except SystemExit as exc:
+        assert exc.code == 0
+
+    assert not topic_file.with_name(f"{topic_file.name}.tmp").exists()
+
+def test_atomic_write_text_replaces_file_without_tmp_leftover(tmp_path):
+    path = tmp_path / "sample.md"
+    path.write_text("old\n", encoding="utf-8")
+
+    atomic_write_text(path, "new\n")
+
+    assert path.read_text(encoding="utf-8") == "new\n"
+    assert not (tmp_path / "sample.md.tmp").exists()
+
+def test_copy_image_to_media_and_legacy_alias_match(robin_env):
+    image = robin_env["tmp_path"] / "image.png"
+    image.write_bytes(b"image")
+
+    first = copy_image_to_media({"media_dir": "media"}, str(robin_env["state_dir"]), "Images", "20260408-first", str(image))
+    second = copy_image_to_vault({"media_dir": "media"}, str(robin_env["state_dir"]), "Images", "20260408-second", str(image))
+
+    assert first == "media/images/20260408-first.png"
+    assert second == "media/images/20260408-second.png"

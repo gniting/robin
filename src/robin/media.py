@@ -33,7 +33,7 @@ def validate_image_path(value: str) -> Path:
     return path
 
 
-def copy_image_to_vault(
+def copy_image_to_media(
     config: dict,
     explicit_state_dir: str | None,
     topic: str,
@@ -46,3 +46,13 @@ def copy_image_to_vault(
     destination = destination_dir / f"{entry_id}{source.suffix.lower()}"
     shutil.copy2(source, destination)
     return str(destination.relative_to(state_dir(explicit_state_dir)))
+
+
+def copy_image_to_vault(
+    config: dict,
+    explicit_state_dir: str | None,
+    topic: str,
+    entry_id: str,
+    image_path: str,
+) -> str:
+    return copy_image_to_media(config, explicit_state_dir, topic, entry_id, image_path)

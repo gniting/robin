@@ -352,9 +352,10 @@ def _check_doctor_json(state_dir: Path) -> None:
 
 
 def _check_reindex_after_cleanup(state_dir: Path) -> None:
-    topic_file = state_dir / "topics" / "robin-selftest.md"
-    if topic_file.exists():
-        topic_file.unlink()
+    for filename in ("robin-selftest.md", "entry-management.md", "moved-entries.md"):
+        topic_file = state_dir / "topics" / filename
+        if topic_file.exists():
+            topic_file.unlink()
     payload = _run_json([_script("reindex.py"), "--state-dir", str(state_dir), "--json"])
     if not isinstance(payload, dict):
         raise SelftestFailure("reindex.py --json did not return an object")

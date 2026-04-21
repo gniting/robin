@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from robin.config import state_dir, topics_path
+from robin.files import atomic_write_text
 from robin.index import ensure_entry_in_index
 from robin.media import is_remote_reference
 from robin.models import Entry
@@ -32,21 +33,27 @@ def duplicate_candidates(entries: list[Entry], entry: Entry) -> list[Entry]:
     source = entry.source.strip().lower()
     media_source = entry.media_source.strip().lower()
     body = normalize_body(entry.body)
-    matches: list[Entry] = []
 
     for candidate in entries:
         if candidate.entry_id == entry.entry_id:
             continue
         if source and candidate.source.strip().lower() == source:
-            matches.append(candidate)
-            continue
+            return [candidate]
         if media_source and candidate.media_source.strip().lower() == media_source:
-            matches.append(candidate)
-            continue
+            return [candidate]
         if body and normalize_body(candidate.body) == body:
-            matches.append(candidate)
+            return [candidate]
 
-    return matches
+    return []
+
+
+def find_duplicate_candidates(config: dict, explicit_state_dir: str | None, entry: Entry) -> list[Entry]:
+    for filepath in _topic_files(config, explicit_state_dir):
+        for match in _load_topic_chunks(filepath):
+            duplicate = duplicate_candidates([match.entry], entry)
+            if duplicate:
+                return duplicate
+    return []
 
 
 def duplicate_payload(matches: list[Entry]) -> list[dict]:
@@ -107,12 +114,12 @@ def append_entry_to_file(filepath: Path, serialized: str) -> None:
         out = content + SEPARATOR + serialized if content.strip() else serialized
     else:
         out = serialized
-    filepath.write_text(out + "\n", encoding="utf-8")
+    atomic_write_text(filepath, out + "\n")
 
 
 def _write_chunks(filepath: Path, chunks: list[str]) -> None:
     if chunks:
-        filepath.write_text(SEPARATOR.join(chunks) + "\n", encoding="utf-8")
+        atomic_write_text(filepath, SEPARATOR.join(chunks) + "\n")
     elif filepath.exists():
         filepath.unlink()
 
@@ -187,9 +194,10 @@ def remove_new_media_if_present(explicit_state_dir: str | None, media_source: st
     media_source = media_source.strip()
     if not media_source or is_remote_reference(media_source):
         return
-    media_path = (state_dir(explicit_state_dir) / media_source).resolve()
+    base = state_dir(explicit_state_dir)
+    media_path = (base / media_source).resolve()
     try:
-        media_path.relative_to(state_dir(explicit_state_dir))
+        media_path.relative_to(base)
     except ValueError:
         return
     try:

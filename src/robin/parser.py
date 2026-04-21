@@ -46,7 +46,7 @@ def parse_frontmatter_and_body(text: str) -> tuple[dict, str]:
             body_start = i + 1
             break
         if ":" not in line:
-            raise ValueError(f"Invalid frontmatter line: {line!r}")
+            raise ValueError(f"Invalid frontmatter line {i + 1}: {line!r}")
         key, value = line.split(":", 1)
         normalized_key = key.strip().lower()
         normalized_value = value.strip()
@@ -80,7 +80,7 @@ def parse_entry(text: str, topic: str) -> Entry:
     summary = str(frontmatter.get("summary", "")).strip()
     tags = list(frontmatter.get("tags", []))
     if not entry_id:
-        fingerprint = hashlib.sha1(
+        fingerprint = hashlib.sha256(
             f"{topic}\n{date_added}\n{entry_type}\n{media_kind}\n{media_source}\n{source}\n{description}\n{creator}\n{published_at}\n{summary}\n{','.join(tags)}\n{body}".encode("utf-8")
         ).hexdigest()[:10]
         entry_id = f"legacy-{fingerprint}"
