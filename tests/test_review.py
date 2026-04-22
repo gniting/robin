@@ -158,6 +158,303 @@ def test_review_surfaces_media_metadata(robin_env):
     assert entry.summary.startswith("An excerpt")
 
 
+def test_review_prefers_different_topic_than_most_recent_surface(monkeypatch):
+    entries = [
+        build_text_entry(
+            topic="Wisdom",
+            content="Wisdom entry.",
+            description="Wisdom description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00001",
+        ),
+        build_text_entry(
+            topic="Quotes",
+            content="Quotes entry.",
+            description="Quotes description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00002",
+        ),
+    ]
+    index = {
+        "items": {
+            "20260408-a00001": {
+                "id": "20260408-a00001",
+                "topic": "wisdom",
+                "date": "2026-04-08",
+                "rating": None,
+                "last_surfaced": "2026-04-10T10:00:00+00:00",
+                "times_surfaced": 1,
+            },
+            "20260408-a00002": {
+                "id": "20260408-a00002",
+                "topic": "quotes",
+                "date": "2026-04-08",
+                "rating": None,
+                "last_surfaced": None,
+                "times_surfaced": 1,
+            },
+        }
+    }
+
+    monkeypatch.setattr("robin.review_logic.random.choice", lambda seq: seq[0])
+    candidate = pick_best_candidate(index, entries, {"review_cooldown_days": 0})
+
+    assert candidate is not None
+    _, entry = candidate
+    assert entry.topic == "quotes"
+
+
+def test_review_uses_same_topic_when_no_alternative_is_eligible(monkeypatch):
+    entries = [
+        build_text_entry(
+            topic="Wisdom",
+            content="Older wisdom entry.",
+            description="Older wisdom description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00001",
+        ),
+        build_text_entry(
+            topic="Quotes",
+            content="Recent quotes entry.",
+            description="Recent quotes description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00002",
+        ),
+    ]
+    now = datetime.now(timezone.utc).isoformat()
+    index = {
+        "items": {
+            "20260408-a00001": {
+                "id": "20260408-a00001",
+                "topic": "wisdom",
+                "date": "2026-04-08",
+                "rating": None,
+                "last_surfaced": "2026-02-01T10:00:00+00:00",
+                "times_surfaced": 1,
+            },
+            "20260408-a00002": {
+                "id": "20260408-a00002",
+                "topic": "quotes",
+                "date": "2026-04-08",
+                "rating": None,
+                "last_surfaced": now,
+                "times_surfaced": 0,
+            },
+        }
+    }
+
+    monkeypatch.setattr("robin.review_logic.random.choice", lambda seq: seq[0])
+    candidate = pick_best_candidate(index, entries, {"review_cooldown_days": 60})
+
+    assert candidate is not None
+    _, entry = candidate
+    assert entry.topic == "wisdom"
+
+
+def test_review_prefers_fewer_surfaces_before_ratings(monkeypatch):
+    entries = [
+        build_text_entry(
+            topic="Quotes",
+            content="Low-rated but often surfaced.",
+            description="Low-rated but often surfaced description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00001",
+        ),
+        build_text_entry(
+            topic="Stoicism",
+            content="Higher-rated but rarely surfaced.",
+            description="Higher-rated but rarely surfaced description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00002",
+        ),
+    ]
+    index = {
+        "items": {
+            "20260408-a00001": {
+                "id": "20260408-a00001",
+                "topic": "quotes",
+                "date": "2026-04-08",
+                "rating": 1,
+                "last_surfaced": None,
+                "times_surfaced": 2,
+            },
+            "20260408-a00002": {
+                "id": "20260408-a00002",
+                "topic": "stoicism",
+                "date": "2026-04-08",
+                "rating": 5,
+                "last_surfaced": None,
+                "times_surfaced": 0,
+            },
+        }
+    }
+
+    monkeypatch.setattr("robin.review_logic.random.choice", lambda seq: seq[0])
+    candidate = pick_best_candidate(index, entries, {"review_cooldown_days": 0})
+
+    assert candidate is not None
+    _, entry = candidate
+    assert entry.topic == "stoicism"
+
+
+def test_review_prefers_never_surfaced_before_older_surfaced(monkeypatch):
+    entries = [
+        build_text_entry(
+            topic="Quotes",
+            content="Already surfaced entry.",
+            description="Already surfaced description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00001",
+        ),
+        build_text_entry(
+            topic="Stoicism",
+            content="Never surfaced entry.",
+            description="Never surfaced description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00002",
+        ),
+    ]
+    index = {
+        "items": {
+            "20260408-a00001": {
+                "id": "20260408-a00001",
+                "topic": "quotes",
+                "date": "2026-04-08",
+                "rating": None,
+                "last_surfaced": "2026-02-01T10:00:00+00:00",
+                "times_surfaced": 0,
+            },
+            "20260408-a00002": {
+                "id": "20260408-a00002",
+                "topic": "stoicism",
+                "date": "2026-04-08",
+                "rating": None,
+                "last_surfaced": None,
+                "times_surfaced": 0,
+            },
+        }
+    }
+
+    monkeypatch.setattr("robin.review_logic.random.choice", lambda seq: seq[0])
+    candidate = pick_best_candidate(index, entries, {"review_cooldown_days": 0})
+
+    assert candidate is not None
+    _, entry = candidate
+    assert entry.topic == "stoicism"
+
+
+def test_review_uses_ratings_only_as_late_tiebreaker(monkeypatch):
+    entries = [
+        build_text_entry(
+            topic="Quotes",
+            content="Higher-rated entry.",
+            description="Higher-rated description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00001",
+        ),
+        build_text_entry(
+            topic="Stoicism",
+            content="Lower-rated entry.",
+            description="Lower-rated description.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id="20260408-a00002",
+        ),
+    ]
+    index = {
+        "items": {
+            "20260408-a00001": {
+                "id": "20260408-a00001",
+                "topic": "quotes",
+                "date": "2026-04-08",
+                "rating": 4,
+                "last_surfaced": None,
+                "times_surfaced": 0,
+            },
+            "20260408-a00002": {
+                "id": "20260408-a00002",
+                "topic": "stoicism",
+                "date": "2026-04-08",
+                "rating": 2,
+                "last_surfaced": None,
+                "times_surfaced": 0,
+            },
+        }
+    }
+
+    monkeypatch.setattr("robin.review_logic.random.choice", lambda seq: seq[0])
+    candidate = pick_best_candidate(index, entries, {"review_cooldown_days": 0})
+
+    assert candidate is not None
+    _, entry = candidate
+    assert entry.topic == "stoicism"
+
+
+def test_review_randomizes_within_bounded_top_pool(monkeypatch):
+    entries = [
+        build_text_entry(
+            topic=f"Topic {index}",
+            content=f"Entry {index}.",
+            description=f"Description {index}.",
+            source="",
+            note="",
+            tags=[],
+            date_added="2026-04-08",
+            entry_id=f"20260408-{index:06d}",
+        )
+        for index in range(12)
+    ]
+    index = {
+        "items": {
+            entry.entry_id: {
+                "id": entry.entry_id,
+                "topic": entry.topic,
+                "date": entry.date_added,
+                "rating": None,
+                "last_surfaced": None,
+                "times_surfaced": 0,
+            }
+            for entry in entries
+        }
+    }
+
+    monkeypatch.setattr("robin.review_logic.random.choice", lambda seq: seq[-1])
+    candidate = pick_best_candidate(index, entries, {"review_cooldown_days": 0})
+
+    assert candidate is not None
+    _, entry = candidate
+    assert entry.entry_id == "20260408-000009"
+
+
 def test_review_text_output_includes_source(robin_env, monkeypatch, capsys):
     monkeypatch.setattr("robin.cli.date", FixedDate)
     _save_review_entry(

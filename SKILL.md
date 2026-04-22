@@ -281,14 +281,16 @@ Body:
 Review behavior:
 
 1. Wait until `len(items) >= min_items_before_review`
-2. Prefer unrated items first
-3. Then lower-rated items
-4. Then least frequently surfaced items
-5. Skip items surfaced within `review_cooldown_days`
-6. Surface the chosen entry, including media metadata when present
-7. Scheduled recall is the default: `python3 scripts/review.py --state-dir <state-dir>` increments `times_surfaced`, sets `last_surfaced`, and keeps `_awaiting_rating` as `false`
-8. Active review is explicit: `python3 scripts/review.py --state-dir <state-dir> --active-review` increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`
-9. If `_awaiting_rating` is `true`, rating only overwrites the rating and clears `_awaiting_rating` back to `false`
+2. Skip items surfaced within `review_cooldown_days`
+3. Prefer items with the fewest total prior surfaces
+4. Prefer never-surfaced items before previously surfaced items, then prefer the oldest prior surface
+5. If another topic is eligible, avoid surfacing the same topic that was surfaced most recently
+6. Ratings are only a late tie-breaker; they do not lead scheduled recall ordering
+7. Robin lightly randomizes within the best eligible pool so overloaded topics do not dominate recall
+8. Surface the chosen entry, including media metadata when present
+9. Scheduled recall is the default: `python3 scripts/review.py --state-dir <state-dir>` increments `times_surfaced`, sets `last_surfaced`, and keeps `_awaiting_rating` as `false`
+10. Active review is explicit: `python3 scripts/review.py --state-dir <state-dir> --active-review` increments `times_surfaced`, sets `last_surfaced`, and marks `_awaiting_rating` as `true`
+11. If `_awaiting_rating` is `true`, rating only overwrites the rating and clears `_awaiting_rating` back to `false`
 
 If the agent calls `--rate` directly on an item that was not surfaced first, Robin still sets `last_surfaced`, increments `times_surfaced`, and leaves `_awaiting_rating` as `false`.
 
