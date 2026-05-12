@@ -486,6 +486,42 @@ Review settings such as `min_items_before_review` and `review_cooldown_days` liv
 
 `_awaiting_rating` is an internal review-state flag. It is `true` only after Robin surfaces an item with `--active-review` and becomes `false` again after that surface is rated. Scheduled recall leaves it `false`.
 
+## Publishing to GitHub
+
+To publish Robin to GitHub for distribution via `npx skills add gniting/robin`:
+
+1. Create public repo `robin` on github.com (no README/license/.gitignore — already in skill dir)
+2. Generate dedicated SSH key: `ssh-keygen -t ed25519 -C "hermes@nexus" -f ~/.ssh/github_hermes -N ""`
+3. Add public key to GitHub manually: https://github.com/settings/keys
+4. Initialize and push:
+   ```bash
+   cd ~/.hermes/skills/personal/robin
+   git config --local user.name "Nitin Gupta"
+   git config --local user.email "gniting@gmail.com"
+   git init && git add . && git commit -m "initial"
+   git remote add origin git@github.com:gniting/robin.git
+   git push -u origin master
+   ```
+5. Add to `~/.ssh/config`:
+   ```
+   Host github.com
+       IdentityFile ~/.ssh/github_hermes
+   ```
+6. Set master as default branch on GitHub, delete main
+7. Submit PR to `vercel-labs/skills` catalog adding `gniting/robin`
+
+## Known Bug: `--media-path` on Text Entries
+
+When passing `--media-path <local file>` with `--entry-type text`, the image is not copied to the media vault and `media_source` is not set. No error is raised — it silently does nothing.
+
+**Root cause**: File `~/.hermes/skills/personal/robin/src/robin/cli.py` lines 125-129. The media validation only runs for `image` and `video` entry types. Text entries fall through but `--media-path` is still accepted without triggering the copy logic.
+
+**Expected behavior**: A text entry should support an attached image (e.g. "filed this infographic to wisdom"). The image should be copied to `~/.hermes/data/robin/media/` and `media_source` set in the entry frontmatter.
+
+**Suggested fix**: In `cli.py`, after the entry type switch, add a branch for `--entry-type text` + `--media-path` that calls `copy_image_to_vault()` and sets `media_source` in the entry frontmatter — same path as image entries.
+
+**Workaround**: Use `--entry-type image` instead and supply `creator`, `published_at`, and `summary`.
+
 ## Pitfalls
 
 - Do not use `---` as an entry separator. Use `***`.
@@ -510,6 +546,19 @@ When a user sends an image to file to Robin via a messaging platform:
 4. After `add_entry.py` returns, verify `media_source` is populated in the JSON output
 
 **Important**: Saying "Filed!" after running `add_entry.py` is premature if an expected image attachment is missing. Always check the returned JSON `media_source` field.
+
+### Scheduled Recall: Attaching Images
+
+When surfacing an `image` entry (or any entry with non-empty `media_kind`) via scheduled recall, the cron agent must attach the actual image file. `review.py --json` returns `media_source` as a relative path (e.g. `media/space/20260419-8d00d5.jpg`) — it does NOT attach the file.
+
+**Correct recall step for image entries:**
+1. Run `review.py --json` → get `media_source` from the response
+2. Resolve to absolute path: `<state-dir>/<media_source>` (e.g. `~/.hermes/data/robin/media/space/20260419-8d00d5.jpg`)
+3. Attach using `MEDIA:<full_absolute_path>` in the reply
+
+**What NOT to do:** Stop after rendering the text metadata. The image file exists and is valid — omitting it is a silent failure, not an intentional design.
+
+The `media_source` field is set correctly at add-time. The failure was in the cron prompt not instructing the agent to resolve and attach it. This was confirmed fixed in the `Robin daily review` cron job (`5e996ff52ee5`) on 2026-05-05.
 
 ### Bulk Import Workflow
 
